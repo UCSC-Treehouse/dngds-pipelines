@@ -1,45 +1,105 @@
-ID ?= GM24385.chr20
+ID ?= test
 CPU ?= 64
 # reserve some CPUs while running call_consensus
 HELEN_CALL_CONSENSUS_CPU ?= 56
-BASE ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
+APP_PATH ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
-primary:
-	# Placeholder that downloads a test sample. Eventually this should be base calling
-	echo "Downloading GM24385 test sample..."
-	wget -N https://lc2019.s3-us-west-2.amazonaws.com/sample_data/GM24385/GM24385.chr20.fq
-	md5sum -c $(BASE)GM24385.chr20.fq.md5
-	sed -n '1~4s/^@/>/p;2~4p' GM24385.chr20.fq > GM24385.chr20.fasta
+#
+# Download references
+#
 
-secondary: shasta minimap2 samtools marginpolish helen
-	
-tertiary: freebayes
+references/hg38.fa:
+	# Download references any of the pipelines require
+	mkdir -p references
+	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit
+	wget -N -P references http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/twoBitToFa
+	chmod +x references/twoBitToFa
+	references/twoBitToFa references/hg38.2bit references/hg38.fa
+
+references/hg38.fai:
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		-v `realpath ../references`:/references \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			faidx /references/hg38.fa
+
+#
+# Download a test sample
+#
+
+sample.fq:
+	# Download a reference quality nanopore fastq pruned to chromosome 20
+	wget -N -O sample.fq https://lc2019.s3-us-west-2.amazonaws.com/sample_data/GM24385/GM24385.chr20.fq
+	sed -n '1~4s/^@/>/p;2~4p' sample.fq > sample.fa
+
+
+#
+# Map sample to hg38 and call variants
+#
+
+minimap2.hg38.sam: ../references/hg38.fa sample.fq
+	# Map the reads to HG38
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		-v `realpath ../references`:/references \
+		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
+			-ax map-ont -t $(CPU) /references/hg38.fa sample.fq > minimap2.hg38.sam
+
+minimap2.hg38.bam:
+	# Convert mapped sam to bam
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			view -S -b /data/minimap2.hg38.sam -o /data/minimap2.hg38.bam
+
+minimap2.hg38.sorted.bam:
+	# Convert mapped sam to bam
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			sort /data/minimap2.hg38.bam -o /data/minimap2.hg38.sorted.bam
+
+minimap2.hg38.sorted.bam.bai:
+	# Convert mapped sam to bam
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			index /data/minimap2.hg38.sorted.bam
+
+freebayes.hg38.vcf:
+	# Call variants against hg38
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		--user=`id -u`:`id -g` \
+		-v `realpath ../references`:/references \
+    quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
+			--fasta-reference /references/hg38.fa \
+			--vcf /data/freebayes.hg38.vcf \
+			/data/minimap2.hg38.sorted.bam 
+
+#
+# De novo assemble and polish the sample
+#
 
 shasta:
 	# Generate Shasta assembly
 	rm -rf ShastaRun
 	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
 		tpesout/shasta@sha256:048f180184cfce647a491f26822f633be5de4d033f894ce7bc01e8225e846236 \
-		--input $(ID).fasta
-	mv ShastaRun/Assembly.fasta shasta.fasta
+		--input sample.fa
+	mv ShastaRun/Assembly.fasta shasta.fa
 
 minimap2:
 	# Map the reads back to the Shasta assembly
 	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) shasta.fasta $(ID).fq
+			-ax map-ont -t $(CPU) shasta.fa sample.fq > minimap2.shasta.sam
 
 samtools:
 	# Convert the mapping to BAM
 	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
-		tpesout/samtools_sort:latest \
-		/data/minimap2.sam -@ $(CPU)
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			view -S -b /data/minimap2.shasta.sam -o /data/minimap2.shasta.bam
 	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
-		tpesout/samtools_view@sha256:11faa9b074b3ec96f50f62133bd19f819bd5bf6ad879d913ac45955f95dd91fb \
-		-hb -F 0x104 /data/samtools_sort.bam
-	docker run -it --rm --user=`id -u`:`id -g` --cpus="$(CPU)" -v `pwd`:/data \
-		quay.io/ucsc_cgl/samtools:1.8--cba1ddbca3e1ab94813b58e40e56ab87a59f1997 \
-		index -@ $(CPU) /data/samtools_sort.bam
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			sort /data/minimap2.shasta.bam -o /data/minimap2.shasta.sorted.bam
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			index /data/minimap2.shasta.bam
 
 marginpolish:
 	# Generate marginPolish outputs
@@ -54,10 +114,10 @@ marginpolish:
 helen:
 	# Download the HELEN model and run call_consensus
 	wget -N https://storage.googleapis.com/kishwar-helen/helen_trained_models/v0.0.1/r941_flip235_v001.pkl
-	# delete previous run data (if there is any)
+	delete previous run data (if there is any)
 	rm -rf helen_hdf5/
-	docker run -it --rm --user=`id -u`:`id -g` --cpus="$(CPU)" -v `pwd`:/data \
-		kishwars/helen:0.0.1.cpu \
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		kishwars/helen@sha256:ac3504a6450c57b138a51652ebfff39cf1f5a0435ec995fcf137c7a1978cbedd \
 		call_consensus.py \
 		-i /data/marginPolish/ \
 		-m r941_flip235_v001.pkl \
@@ -65,19 +125,10 @@ helen:
 		-p prediction \
 		-w 0 \
 		-t $(HELEN_CALL_CONSENSUS_CPU)
-	docker run -it --rm --user=`id -u`:`id -g` --cpus="$(CPU)" -v `pwd`:/data \
-		kishwars/helen:0.0.1.cpu \
+	docker run -it --rm --cpus="$(CPU)" -v `pwd`:/data \
+		kishwars/helen@sha256:ac3504a6450c57b138a51652ebfff39cf1f5a0435ec995fcf137c7a1978cbedd \
 		stitch.py \
-		-i helen_hdf5/$(ID)_prediction.hdf \
+		-i helen_hdf5/prediction.hdf \
 		-o /data/ \
 		-p shasta_mp_helen_assembly \
 		-t $(CPU)
-
-freebayes:
-	echo "Downloading references..."
-	wget -N http://labshare.cshl.edu/shares/gingeraslab/www-data/dobin/STAR/STARgenomes/ENSEMBL/homo_sapiens/ENSEMBL.homo_sapiens.release-75/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa
-	docker run -it --rm --user=`id -u`:`id -g` --cpus="$(CPU)" -v `pwd`:/data \
-    quay.io/ucsc_cgl/freebayes \
-			--fasta-reference /data/Homo_sapiens.GRCh37.75.dna.primary_assembly.fa \
-			--vcf /data/freebayes.vcf \
-			/data/samtools_sort.bam
