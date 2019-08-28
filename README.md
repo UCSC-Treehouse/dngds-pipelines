@@ -2,47 +2,42 @@
 
 Tooling to run the primary, secondary and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
 
-## Install dependencies
-To run this program, please install `Make`:
-```bash
-sudo apt-get update
-sudo apt-get install make
-```
+## Requirements
 
-and `Docker`:
-```bash
-sudo apt install docker.io
-sudo systemctl start docker
-sudo systemctl enable docker
-```
-
-To run `Docker` without root privilege:
-```bash
-sudo groupadd docker
-sudo gpasswd -a $USER docker
-# now log out and log in once or run:
-newgrp docker
-```
-
-TIPS:
-To clean all docker images to re-download  them all:
-```bash
-docker rmi $(docker images -a -q)
-```
+make and docker
 
 ## Quick Start
 
-Clone this repo, create a directory for data and run a test sample:
-
+Clone this repo and create a data directory to store references and samples in:
 ```bash
 git clone https://github.com/ucsc-upd/pipelines.git
 mkdir data
-cd data
-make -f ../Makefile primary secondary
+```
+NOTE: The data directory can be a symbolic link
+
+Download references, a test sample and map to HG38 and call variants:
+```bash
+make ID=test data/test/test.vcf
+```
+or
+
+Download a test sample and generate a polished assembly:
+```bash
+make ID=test data/test/test.assembly.fa
 ```
 
-This will generate a polished genome assembly of the input inside `GM24385.chr20_shasta_mp_helen_assembly.fa`
+## Additional Samples
 
+To process additional samples create a directory under data/ with the name as the sample's id, download a FASTQ into it and then:
+```bash
+# Generate a vcf against HG38
+make ID=<sample id> data/<sample id>/<sample id>.vcf
+```
+
+```bash
+# Generate a polished assembly
+make ID=<sample id> data/<sample id>/<sample id>.assembly.fa
+```
 
 ## Quality assessment
 ```
