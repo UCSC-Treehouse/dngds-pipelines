@@ -29,6 +29,7 @@ data/$(ID)/$(ID).fq data/$(ID)/$(ID).fa:
 	echo "Downloading GM24385.chr20.fq reference quality nanopore fastq as a test sample..."
 	mkdir -p data/$(ID)
 	wget -O data/$(ID)/$(ID).fq https://lc2019.s3-us-west-2.amazonaws.com/sample_data/GM24385/GM24385.chr20.fq
+	md5sum -c $(APP_PATH)test.fq.md5
 	sed -n '1~4s/^@/>/p;2~4p' data/$(ID)/$(ID).fq > data/$(ID)/$(ID).fa
 
 data/$(ID)/$(ID).fq.md5: data/$(ID)/$(ID).fq
@@ -41,8 +42,7 @@ data/$(ID)/$(ID).fq.md5: data/$(ID)/$(ID).fq
 
 data/$(ID)/$(ID).minimap2_hg38.sam: data/references/hg38.fa data/$(ID)/$(ID).fq data/$(ID)/$(ID).fq.md5
 	echo "Mapping reads to reference genome..."
-	docker run -it --rm --cpus="$(CPU)" \
-		-v `realpath data/$(ID)`:/data \
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
 		-ax map-ont -t $(CPU) /references/hg38.fa /data/$(ID).fq
@@ -64,8 +64,7 @@ data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
 
 data/$(ID)/$(ID).vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam
 	echo "Calling variants against hg38..."
-	docker run -it --rm --cpus="$(CPU)" \
-		-v `realpath data/$(ID)`:/data \
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		--user=`id -u`:`id -g` \
 		quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
@@ -82,14 +81,15 @@ data/$(ID)/$(ID).shasta.fa: data/$(ID)/$(ID).fa
 	rm -rf data/$(ID)/ShastaRun
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		tpesout/shasta@sha256:048f180184cfce647a491f26822f633be5de4d033f894ce7bc01e8225e846236 \
-		--input $(ID).fa
+		--input /data/$(ID).fa
 	mv data/$(ID)/ShastaRun/Assembly.fasta data/$(ID)/$(ID).shasta.fa
 
 data/$(ID)/$(ID).minimap2_shasta.sam: data/$(ID)/$(ID).shasta.fa
 	echo "Mapping fastq back to the assembled fasta..."
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) /data/$(ID).minimap2_shasta.fa /data/$(ID).fq > minimap2_shasta.sam
+		-ax map-ont -t $(CPU) /data/$(ID).shasta.fa /data/$(ID).fq
+	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_shasta.sam
 
 data/$(ID)/$(ID).minimap2_shasta_sorted.bam: data/$(ID)/$(ID).minimap2_shasta.sam
 	echo "Converting sam to sorted bam with index..."
@@ -117,14 +117,15 @@ data/$(ID)/$(ID).marginPolish.fa: data/$(ID)/$(ID).minimap2_shasta_sorted.bam da
 
 data/$(ID)/$(ID).assembly.fa: data/$(ID)/$(ID).marginPolish.fa
 	echo "Downloading Helen model..."
-	wget -N https://storage.googleapis.com/kishwar-helen/helen_trained_models/v0.0.1/r941_flip235_v001.pkl
+	wget -N -P data/references https://storage.googleapis.com/kishwar-helen/helen_trained_models/v0.0.1/r941_flip235_v001.pkl
 	echo "Calling consensus via Helen..."
 	rm -rf helen_hdf5/
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
 		kishwars/helen@sha256:ac3504a6450c57b138a51652ebfff39cf1f5a0435ec995fcf137c7a1978cbedd \
 		call_consensus.py \
 		-i /data/marginPolish/ \
-		-m r941_flip235_v001.pkl \
+		-m /references/r941_flip235_v001.pkl \
 		-o helen_hdf5/ \
 		-p prediction \
 		-w 0 \
