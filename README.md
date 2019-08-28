@@ -1,13 +1,10 @@
 # UPD Pipelines
-
-Tooling to run the primary, secondary and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
+Tooling to run primary, secondar and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
 
 ## Requirements
-
 make and docker
 
 ## Quick Start
-
 Clone this repo and create a data directory to store references and samples in:
 ```bash
 git clone https://github.com/ucsc-upd/pipelines.git
@@ -20,20 +17,18 @@ Download references, a test sample and map to HG38 and call variants:
 make ID=test data/test/test.vcf
 ```
 or
-
 Download a test sample and generate a polished assembly:
 ```bash
 make ID=test data/test/test.assembly.fa
 ```
 
 ## Additional Samples
-
 To process additional samples create a directory under data/ with the name as the sample's id, download a FASTQ into it and then:
 ```bash
 # Generate a vcf against HG38
 make ID=<sample id> data/<sample id>/<sample id>.vcf
 ```
-
+or
 ```bash
 # Generate a polished assembly
 make ID=<sample id> data/<sample id>/<sample id>.assembly.fa
