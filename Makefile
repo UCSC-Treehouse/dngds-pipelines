@@ -76,7 +76,7 @@ data/$(ID)/$(ID).vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam
 # De novo assemble and polish the sample
 #
 
-data/$(ID)/$(ID).shasta.fa: data/$(ID)/$(ID).fa
+data/$(ID)/$(ID).shasta.fa: data/$(ID)/$(ID).fa data/$(ID)/$(ID).fq.md5
 	echo "Assembling fasta..."
 	rm -rf data/$(ID)/ShastaRun
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
