@@ -62,7 +62,7 @@ data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		index /data/$(ID).minimap2_hg38_sorted.bam
 
-data/$(ID)/$(ID).vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam
+data/$(ID)/$(ID).hg38.vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
 	echo "Calling variants against hg38..."
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
@@ -70,6 +70,18 @@ data/$(ID)/$(ID).vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam
 		quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
 		--fasta-reference /references/hg38.fa \
 		--vcf /data/$(ID).hg38.vcf \
+		/data/$(ID).minimap2_hg38_sorted.bam 
+
+# http://clavius.bc.edu/~erik/CSHL-advanced-sequencing/freebayes-tutorial.html
+data/$(ID)/$(ID).hg38_lite.vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
+	echo "Calling variants on a small region against hg38..."
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
+		--region chr20:1000000-1010000 \
+		--fasta-reference /references/hg38.fa \
+		--vcf /data/$(ID).hg38_lite.vcf \
 		/data/$(ID).minimap2_hg38_sorted.bam 
 
 #

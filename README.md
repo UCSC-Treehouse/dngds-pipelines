@@ -16,7 +16,11 @@ NOTE: The data directory can be a symbolic link (i.e. to a scratch location)
 
 Download references, a test sample and map to HG38 and call variants:
 ```bash
-make ID=test data/test/test.vcf
+make ID=test data/test/test.hg38.vcf
+```
+or call variants against a subset of chromosome 20
+```bash
+make ID=test data/test/test.hg38_lite.vcf
 ```
 or
 Download a test sample and generate a polished assembly:
@@ -28,7 +32,7 @@ make ID=test data/test/test.assembly.fa
 To process additional samples create a directory under data/ with the name as the sample's id, download a FASTQ into it and then:
 ```bash
 # Generate a vcf against HG38
-make ID=<sample id> data/<sample id>/<sample id>.vcf
+make ID=<sample id> data/<sample id>/<sample id>.hg38.vcf
 ```
 or
 ```bash
