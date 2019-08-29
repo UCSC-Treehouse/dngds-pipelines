@@ -83,6 +83,22 @@ data/$(ID)/$(ID).hg38_lite.vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/r
 		--vcf /data/$(ID).hg38_lite.vcf \
 		/data/$(ID).minimap2_hg38_sorted.bam 
 
+benchmark:
+	# Running but not working attempt to compare the lite vcf to a genome in a bottle variant set
+	wget -N -P data/references https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
+	wget -N -P data/references https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz.tbi
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/tabix@sha256:b3c27ce674200727cd1b53a93ac4299f179e5411cd9c5a22db84b0c21b21baca \
+		tabix -p vcf /references/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz \
+		chr20:1000000-1010000 > data/references/HG002_GRCh38_GIAB_lite.vcf
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/snpsift@sha256:57ccff2c3f75f61990d7571c1d0e46255128bc118e39fd5a61c3fd84a440d1c9 \
+		java -jar /usr/local/share/snpsift-4.2-3/SnpSift.jar concordance -v /references/HG002_GRCh38_GIAB_lite.vcf /data/$(ID).hg38_lite.vcf
+
 #
 # De novo assemble and polish the sample
 #
