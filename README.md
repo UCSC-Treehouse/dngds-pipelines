@@ -2,15 +2,17 @@
 Tooling to run primary, secondar and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
 
 ## Requirements
-make and docker
+linux, make and docker
+1.5TB+ memory to assemble a full genome (primarily Shasta requirement)
 
 ## Quick Start
 Clone this repo and create a data directory to store references and samples in:
 ```bash
 git clone https://github.com/ucsc-upd/pipelines.git
+cd pipelines
 mkdir data
 ```
-NOTE: The data directory can be a symbolic link
+NOTE: The data directory can be a symbolic link (i.e. to a scratch location)
 
 Download references, a test sample and map to HG38 and call variants:
 ```bash
