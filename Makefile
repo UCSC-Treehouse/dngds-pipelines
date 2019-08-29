@@ -16,14 +16,13 @@ APP_PATH ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 data/references/hg38.fa:
 	echo "Downloading hg38 reference and indexing..."
 	mkdir -p data/references
-	wget -N -P data/references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.2bit
-	wget -N -P data/references http://hgdownload.cse.ucsc.edu/admin/exe/linux.x86_64/twoBitToFa
-	chmod +x data/references/twoBitToFa
-	data/references/twoBitToFa data/references/hg38.2bit data/references/hg38.fa
+	wget -N -P data/references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
+	gunzip data/references/hg38.fa.gz
 	md5sum -c $(APP_PATH)hg38.fa.md5
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		faidx /data/references/hg38.fa
+		faidx /references/hg38.fa
 
 data/$(ID)/$(ID).fq data/$(ID)/$(ID).fa:
 	echo "Downloading GM24385.chr20.fq reference quality nanopore fastq as a test sample..."
