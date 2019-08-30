@@ -1,5 +1,5 @@
 # UPD Pipelines
-Tooling to run primary, secondar and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
+Tooling to run primary, secondary and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
 
 ## Requirements
 linux, make and docker
@@ -14,30 +14,30 @@ mkdir data
 ```
 NOTE: The data directory can be a symbolic link (i.e. to a scratch location)
 
-Download references, a test sample and map to HG38 and call variants:
+Download references, a test sample and map to HG38:
+```bash
+make ID=test data/test/test.minimap2_hg38_sorted.bam
+```
+Call variants against HG38:
 ```bash
 make ID=test data/test/test.hg38.vcf
 ```
-or call variants against a subset of chromosome 20
+Call variants against a subset of chromosome 20
 ```bash
 make ID=test data/test/test.hg38_lite.vcf
 ```
-or
 Download a test sample and generate a polished assembly:
 ```bash
 make ID=test data/test/test.assembly.fa
 ```
 
 ## Additional Samples
-To process additional samples create a directory under data/ with the name as the sample's id, download a FASTQ into it and then:
+To process additional samples create a directory under data/ with the name as the sample's id, download a FASTQ into it and then call any of the above targets with 'test' replaced with sample id.
+
+For example if you download a fq as data/foobar/foobar.fq you can generated a sorted bam via:
+Download a test sample and generate a polished assembly:
 ```bash
-# Generate a vcf against HG38
-make ID=<sample id> data/<sample id>/<sample id>.hg38.vcf
-```
-or
-```bash
-# Generate a polished assembly
-make ID=<sample id> data/<sample id>/<sample id>.assembly.fa
+make ID=test data/foobar/foobar.assembly.fa
 ```
 
 ## Quality assessment

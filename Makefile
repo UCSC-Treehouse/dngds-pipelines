@@ -2,10 +2,11 @@
 ID ?= test
 
 # Max number of CPUs/Cores to use
-CPU ?= 64
+CPU ?= 32
 
 # reserve some CPUs while running call_consensus
-HELEN_CALL_CONSENSUS_CPU ?= 56
+# CPU = 64, use 56, CPU = 32, use 28
+HELEN_CALL_CONSENSUS_CPU ?= 28
 
 APP_PATH ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
@@ -19,7 +20,7 @@ data/references/hg38.fa:
 	wget -N -P data/references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
 	gunzip data/references/hg38.fa.gz
 	md5sum -c $(APP_PATH)hg38.fa.md5
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+	docker run -it --rm --cpus="$(CPU)" \
 		-v `realpath data/references`:/references \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		faidx /references/hg38.fa
