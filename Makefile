@@ -20,10 +20,12 @@ data/references/hg38.fa:
 	wget -N -P data/references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
 	gunzip data/references/hg38.fa.gz
 	md5sum -c $(APP_PATH)hg38.fa.md5
+
+data/references/hg38.fa.fai: data/references/hg38.fa
 	docker run -it --rm --cpus="$(CPU)" \
-		-v `realpath data/references`:/references \
+		-v `realpath data/references`:/data \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		faidx /references/hg38.fa
+		faidx /data/hg38.fa
 
 data/$(ID)/$(ID).fq data/$(ID)/$(ID).fa:
 	echo "Downloading GM24385.chr20.fq reference quality nanopore fastq as a test sample..."
@@ -40,7 +42,8 @@ data/$(ID)/$(ID).fq.md5: data/$(ID)/$(ID).fq
 # Map sample to hg38
 #
 
-data/$(ID)/$(ID).minimap2_hg38.sam: data/references/hg38.fa data/$(ID)/$(ID).fq data/$(ID)/$(ID).fq.md5
+data/$(ID)/$(ID).minimap2_hg38.sam: \
+	data/references/hg38.fa data/references/hg38.fa.fai data/$(ID)/$(ID).fq data/$(ID)/$(ID).fq.md5
 	echo "Mapping reads to reference genome..."
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
@@ -69,7 +72,7 @@ data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
 data/references/trainedModels:
 	cd data/references && curl http://www.bio8.cs.hku.hk/trainedModels.tbz | tar -jxf -
 
-data/$(ID)/$(ID).clairvoyante_hg38_lite.vcf: \
+data/$(ID)/$(ID).hg38_lite.vcf: \
 	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa data/references/trainedModels
 	echo "Calling variants against hg38..."
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
@@ -81,7 +84,7 @@ data/$(ID)/$(ID).clairvoyante_hg38_lite.vcf: \
 			--chkpnt_fn /references/trainedModels/fullv3-illumina-novoalign-hg001+hg002-hg38/learningRate1e-3.epoch500 \
 			--ref_fn /references/hg38.fa \
 			--bam_fn /data/$(ID).minimap2_hg38_sorted.bam \
-			--call_fn /data/$(ID).clairvoyante_hg38_lite.vcf \
+			--call_fn /data/$(ID).hg38_lite.vcf \
 			--ctgName chr20 \
 			--ctgStart 1000000 \
 			--ctgEnd 1010000
