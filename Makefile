@@ -37,7 +37,7 @@ data/$(ID)/$(ID).fq.md5: data/$(ID)/$(ID).fq
 	md5sum data/$(ID)/$(ID).fq > data/$(ID)/$(ID).fq.md5
 
 #
-# Map sample to hg38 and call variants
+# Map sample to hg38
 #
 
 data/$(ID)/$(ID).minimap2_hg38.sam: data/references/hg38.fa data/$(ID)/$(ID).fq data/$(ID)/$(ID).fq.md5
@@ -62,27 +62,29 @@ data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		index /data/$(ID).minimap2_hg38_sorted.bam
 
-data/$(ID)/$(ID).hg38.vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
+#
+# Call variants against hg38
+#
+
+data/references/trainedModels:
+	cd data/references && curl http://www.bio8.cs.hku.hk/trainedModels.tbz | tar -jxf -
+
+data/$(ID)/$(ID).clairvoyante_hg38_lite.vcf: \
+	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa data/references/trainedModels
 	echo "Calling variants against hg38..."
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		--user=`id -u`:`id -g` \
-		quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
-		--fasta-reference /references/hg38.fa \
-		--vcf /data/$(ID).hg38.vcf \
-		/data/$(ID).minimap2_hg38_sorted.bam 
-
-# http://clavius.bc.edu/~erik/CSHL-advanced-sequencing/freebayes-tutorial.html
-data/$(ID)/$(ID).hg38_lite.vcf: data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
-	echo "Calling variants on a small region against hg38..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		-v `realpath data/references`:/references \
-		--user=`id -u`:`id -g` \
-		quay.io/ucsc_cgl/freebayes@sha256:b467edda4f92f22f0dc21e54e69e18bfd6dcc5cbe3292e108429e2d86034e6e5 \
-		--region chr20:1000000-1010000 \
-		--fasta-reference /references/hg38.fa \
-		--vcf /data/$(ID).hg38_lite.vcf \
-		/data/$(ID).minimap2_hg38_sorted.bam 
+		-e CUDA_VISIBLE_DEVICES="" \
+		lifebitai/clairvoyante:latest \
+		pypy /opt/conda/bin/clairvoyante/callVarBam.py \
+			--chkpnt_fn /references/trainedModels/fullv3-illumina-novoalign-hg001+hg002-hg38/learningRate1e-3.epoch500 \
+			--ref_fn /references/hg38.fa \
+			--bam_fn /data/$(ID).minimap2_hg38_sorted.bam \
+			--call_fn /data/$(ID).clairvoyante_hg38_lite.vcf \
+			--ctgName chr20 \
+			--ctgStart 1000000 \
+			--ctgEnd 1010000
 
 benchmark:
 	# Running but not working attempt to compare the lite vcf to a genome in a bottle variant set
@@ -98,7 +100,7 @@ benchmark:
 		-v `realpath data/references`:/references \
 		--user=`id -u`:`id -g` \
 		quay.io/biocontainers/snpsift@sha256:57ccff2c3f75f61990d7571c1d0e46255128bc118e39fd5a61c3fd84a440d1c9 \
-		java -jar /usr/local/share/snpsift-4.2-3/SnpSift.jar concordance -v /references/HG002_GRCh38_GIAB_lite.vcf /data/$(ID).hg38_lite.vcf
+		java -jar /usr/local/share/snpsift-4.2-3/SnpSift.jar concordance -v /references/HG002_GRCh38_GIAB_lite.vcf /data/$(ID).clairvoyante_hg38_lite.vcf
 
 #
 # De novo assemble and polish the sample
