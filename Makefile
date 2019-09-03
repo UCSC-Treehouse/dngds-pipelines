@@ -105,6 +105,17 @@ benchmark:
 		quay.io/biocontainers/snpsift@sha256:57ccff2c3f75f61990d7571c1d0e46255128bc118e39fd5a61c3fd84a440d1c9 \
 		java -jar /usr/local/share/snpsift-4.2-3/SnpSift.jar concordance -v /references/HG002_GRCh38_GIAB_lite.vcf /data/$(ID).clairvoyante_hg38_lite.vcf
 
+
+data/$(ID)/$(ID).hg38_sv_svim.vcf: \
+	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
+	echo "Calling structural variants with SVIM against hg38..."
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
+		svim alignment svim_$(ID) /data/$(ID).minimap2_hg38_sorted.bam /references/hg38.fa --sample $(ID)
+	mv data/$(ID)/svim_$(ID)/final_results.vcf data/$(ID)/$(ID).hg38_sv_svim.vcf
+
 #
 # De novo assemble and polish the sample
 #
