@@ -4,10 +4,6 @@ ID ?= test
 # Max number of CPUs/Cores to use
 CPU ?= 32
 
-# reserve some CPUs while running call_consensus
-# CPU = 64, use 56, CPU = 32, use 28
-HELEN_CALL_CONSENSUS_CPU ?= 28
-
 APP_PATH ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
 #
@@ -50,6 +46,7 @@ data/$(ID)/$(ID).minimap2_hg38.sam: \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
 		-ax map-ont -t $(CPU) --MD /references/hg38.fa /data/$(ID).fq
 	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_hg38.sam
+	mv data/$(ID)/minimap2.log data/$(ID)/$(ID).minimap2_hg38.log
 
 data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
 	echo "Converting sam to sorted bam with index..."
@@ -90,21 +87,32 @@ data/$(ID)/$(ID).hg38_lite.vcf: \
 			--ctgEnd 1010000
 
 benchmark:
-	# Running but not working attempt to compare the lite vcf to a genome in a bottle variant set
+	# Compare the region we tried to call variants on to the ground truth from GIAB
+	# First download the ground truth
 	wget -N -P data/references https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
 	wget -N -P data/references https://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz.tbi
+	wget -N -P data/references ftp://ftp-trace.ncbi.nlm.nih.gov/giab/ftp/release/AshkenazimTrio/HG002_NA24385_son/latest/GRCh38/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_noinconsistent.bed
+	# Compress and index our variant set - should be up in variant calling?
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		--user=`id -u`:`id -g` \
-		quay.io/biocontainers/tabix@sha256:b3c27ce674200727cd1b53a93ac4299f179e5411cd9c5a22db84b0c21b21baca \
-		tabix -p vcf /references/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz \
-		chr20:1000000-1010000 > data/references/HG002_GRCh38_GIAB_lite.vcf
+		quay.io/biocontainers/bcftools@sha256:d9360c33b0771a49f49db174d03e0e49c8720eef34330be4c0371ca54fbb8f7b \
+		bcftools view -Oz -o /data/$(ID).hg38_lite.vcf.gz /data/$(ID).hg38_lite.vcf
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		--user=`id -u`:`id -g` \
-		quay.io/biocontainers/snpsift@sha256:57ccff2c3f75f61990d7571c1d0e46255128bc118e39fd5a61c3fd84a440d1c9 \
-		java -jar /usr/local/share/snpsift-4.2-3/SnpSift.jar concordance -v /references/HG002_GRCh38_GIAB_lite.vcf /data/$(ID).clairvoyante_hg38_lite.vcf
-
+		quay.io/biocontainers/bcftools@sha256:d9360c33b0771a49f49db174d03e0e49c8720eef34330be4c0371ca54fbb8f7b \
+		bcftools index /data/$(ID).hg38_lite.vcf.gz
+	# Find the variants found in both
+	mkdir -p data/$(ID)/diff
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/bcftools@sha256:d9360c33b0771a49f49db174d03e0e49c8720eef34330be4c0371ca54fbb8f7b \
+		bcftools isec --regions chr20:1000000-1010000 \
+		-p /data/diff -n=2 \
+		/data/$(ID).hg38_lite.vcf.gz \
+		/references/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
 
 data/$(ID)/$(ID).hg38_sv_svim.vcf: \
 	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
@@ -124,71 +132,3 @@ data/$(ID)/$(ID).hg38_sv_sniffles.vcf: \
 		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
 		sniffles -m /data/$(ID).minimap2_hg38_sorted.bam -v /data/$(ID).hg38_sv_sniffles.vcf --genotype -t $(CPU)
 
-
-#
-# De novo assemble and polish the sample
-#
-
-data/$(ID)/$(ID).shasta.fa: data/$(ID)/$(ID).fa data/$(ID)/$(ID).fq.md5
-	echo "Assembling fasta..."
-	rm -rf data/$(ID)/ShastaRun
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		tpesout/shasta@sha256:048f180184cfce647a491f26822f633be5de4d033f894ce7bc01e8225e846236 \
-		--input /data/$(ID).fa
-	mv data/$(ID)/ShastaRun/Assembly.fasta data/$(ID)/$(ID).shasta.fa
-
-data/$(ID)/$(ID).minimap2_shasta.sam: data/$(ID)/$(ID).shasta.fa
-	echo "Mapping fastq back to the assembled fasta..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) /data/$(ID).shasta.fa /data/$(ID).fq
-	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_shasta.sam
-
-data/$(ID)/$(ID).minimap2_shasta_sorted.bam: data/$(ID)/$(ID).minimap2_shasta.sam
-	echo "Converting sam to sorted bam with index..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		view -S -b /data/$(ID).minimap2_shasta.sam -o /data/$(ID).minimap2_shasta.bam
-	echo "Sorting bam..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		sort /data/$(ID).minimap2_shasta.bam -o /data/$(ID).minimap2_shasta_sorted.bam
-	echo "Indexing bam..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		index /data/$(ID).minimap2_shasta_sorted.bam
-
-data/$(ID)/$(ID).marginPolish.fa: data/$(ID)/$(ID).minimap2_shasta_sorted.bam data/$(ID)/$(ID).shasta.fa
-	echo "Polishing fasta..."
-	rm -rf data/$(ID)/marginPolish
-	mkdir -p data/$(ID)/marginPolish
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		tpesout/margin_polish@sha256:de10c726bcc6af2f58cbb35af32ed0f0d95a3dc5f64f66dcc4eecbeb36f98b65 \
-		/data/$(ID).minimap2_shasta_sorted.bam /data/$(ID).shasta.fa \
-		/opt/MarginPolish/params/allParams.np.human.guppy-ff-235.json -t $(CPU) -o /data/marginPolish/output -f
-	mv data/$(ID)/marginPolish/output.fa data/$(ID)/$(ID).marginPolish.fa
-
-data/$(ID)/$(ID).assembly.fa: data/$(ID)/$(ID).marginPolish.fa
-	echo "Downloading Helen model..."
-	wget -N -P data/references https://storage.googleapis.com/kishwar-helen/helen_trained_models/v0.0.1/r941_flip235_v001.pkl
-	echo "Calling consensus via Helen..."
-	rm -rf helen_hdf5/
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		-v `realpath data/references`:/references \
-		kishwars/helen@sha256:ac3504a6450c57b138a51652ebfff39cf1f5a0435ec995fcf137c7a1978cbedd \
-		call_consensus.py \
-		-i /data/marginPolish/ \
-		-m /references/r941_flip235_v001.pkl \
-		-o helen_hdf5/ \
-		-p prediction \
-		-w 0 \
-		-t $(HELEN_CALL_CONSENSUS_CPU)
-	echo "Stitching via Helen..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		kishwars/helen@sha256:ac3504a6450c57b138a51652ebfff39cf1f5a0435ec995fcf137c7a1978cbedd \
-		stitch.py \
-		-i helen_hdf5/prediction.hdf \
-		-o /data/ \
-		-p shasta_mp_helen_assembly \
-		-t $(CPU)
-	mv data/$(ID)/shasta_mp_helen_assembly.fa data/$(ID)/$(ID).assembly.fa
