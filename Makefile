@@ -48,7 +48,7 @@ data/$(ID)/$(ID).minimap2_hg38.sam: \
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) /references/hg38.fa /data/$(ID).fq
+		-ax map-ont -t $(CPU) --MD /references/hg38.fa /data/$(ID).fq
 	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_hg38.sam
 
 data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
