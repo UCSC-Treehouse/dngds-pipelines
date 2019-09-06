@@ -26,6 +26,11 @@ Call variants against a subset of chromosome 20
 ```bash
 make ID=test data/test/test.hg38_lite.vcf
 ```
+Call structural variants against a subset of chromosome 20 with [SVIM](https://github.com/eldariont/svim) and [Sniffles](https://github.com/fritzsedlazeck/Sniffles)
+```bash
+make ID=test data/test/test.hg38_sv_svim.vcf
+make ID=test data/test/test.hg38_sv_sniffles.vcf
+```
 Download a test sample and generate a polished assembly:
 ```bash
 make ID=test data/test/test.assembly.fa

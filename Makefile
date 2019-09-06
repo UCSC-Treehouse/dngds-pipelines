@@ -44,7 +44,7 @@ data/$(ID)/$(ID).minimap2_hg38.sam: \
 	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
 		-v `realpath data/references`:/references \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) /references/hg38.fa /data/$(ID).fq
+		-ax map-ont -t $(CPU) --MD /references/hg38.fa /data/$(ID).fq
 	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_hg38.sam
 	mv data/$(ID)/minimap2.log data/$(ID)/$(ID).minimap2_hg38.log
 
@@ -113,3 +113,22 @@ benchmark:
 		-p /data/diff -n=2 \
 		/data/$(ID).hg38_lite.vcf.gz \
 		/references/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
+
+data/$(ID)/$(ID).hg38_sv_svim.vcf: \
+	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
+	echo "Calling structural variants with SVIM against hg38..."
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		-v `realpath data/references`:/references \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
+		svim alignment /data/svim_$(ID) /data/$(ID).minimap2_hg38_sorted.bam /references/hg38.fa --sample $(ID)
+	mv data/$(ID)/svim_$(ID)/final_results.vcf data/$(ID)/$(ID).hg38_sv_svim.vcf
+
+data/$(ID)/$(ID).hg38_sv_sniffles.vcf: \
+	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
+	echo "Calling structural variants with Sniffles against hg38..."
+	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
+		--user=`id -u`:`id -g` \
+		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
+		sniffles -m /data/$(ID).minimap2_hg38_sorted.bam -v /data/$(ID).hg38_sv_sniffles.vcf --genotype -t $(CPU)
+
