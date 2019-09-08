@@ -1,13 +1,50 @@
-# Sample ID - will be used to prefix all files generated
-ID ?= test
+#
+#	References:
+#	https://monades.roperzh.com/rediscovering-make-automatic-variables/
+#
+# Keep all intermediate artifacts, should add a few to prune later...
+.SECONDARY:
 
-# Max number of CPUs/Cores to use
-CPU ?= 32
-
+# Path to the Makefile
 APP_PATH ?= $(dir $(realpath $(firstword $(MAKEFILE_LIST))))
 
+# filename of first prerequisite ex. sample.fq
+PREREQ = $(<F)
+
+# filename of the target generated from the prerequisite ex. sample.bam
+TARGET = $(@F)
+
+# Run as the calling user, data directories group and map the sample
+# into /data and references into /references
+DOCKER_RUN = docker run -it --rm --cpus="32" \
+		--user `id -u`:`stat -c "%g" data/` \
+		-v `realpath data/references`:/references \
+		-v `realpath $(@D)`:/data
+
+# Default downloads chr11 and generates all artifacts
+default:
+	data/na12878-chr11/na12878-chr11.fq.gz \
+	data/na12878-chr11/na12878-chr11.sniffles.vcf \
+	data/na12878-chr11/na12878-chr11.svim.vcf \
+	data/na12878-chr11/na12878-chr11.clairvoyante.vcf
+
+# Rule to generate all artifacts in data/id/
+data/%: %.fq.gz %.sniffles.vcf %.svim.vcf %.clairvoyante.vcf
+	data/na12878-chr11/na12878-chr11.fq.gz \
+	data/na12878-chr11/na12878-chr11.sniffles.vcf \
+	data/na12878-chr11/na12878-chr11.svim.vcf \
+	data/na12878-chr11/na12878-chr11.clairvoyante.vcf
+
 #
-# Download references, test samples, and generate MD5's...
+# General recipes
+#
+
+%.md5: %
+	echo "Calculating md5 of $(<) for provenance..."
+	md5sum $(<) > $(<).md5
+
+#
+# Download references
 #
 
 data/references/hg38.fa:
@@ -18,76 +55,86 @@ data/references/hg38.fa:
 	md5sum -c $(APP_PATH)hg38.fa.md5
 
 data/references/hg38.fa.fai: data/references/hg38.fa
-	docker run -it --rm --cpus="$(CPU)" \
-		-v `realpath data/references`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
+	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		faidx /data/hg38.fa
-
-data/$(ID)/$(ID).fq data/$(ID)/$(ID).fa:
-	echo "Downloading GM24385.chr20.fq reference quality nanopore fastq as a test sample..."
-	mkdir -p data/$(ID)
-	wget -O data/$(ID)/$(ID).fq https://lc2019.s3-us-west-2.amazonaws.com/sample_data/GM24385/GM24385.chr20.fq
-	md5sum -c $(APP_PATH)test.fq.md5
-	sed -n '1~4s/^@/>/p;2~4p' data/$(ID)/$(ID).fq > data/$(ID)/$(ID).fa
-
-data/$(ID)/$(ID).fq.md5: data/$(ID)/$(ID).fq
-	echo "Calculating MD5 of FASTQ for provenance..."
-	md5sum data/$(ID)/$(ID).fq > data/$(ID)/$(ID).fq.md5
+		faidx /references/hg38.fa
 
 #
-# Map sample to hg38
+# Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
+# and convert to fq as a test sample
 #
 
-data/$(ID)/$(ID).minimap2_hg38.sam: \
-	data/references/hg38.fa data/references/hg38.fa.fai data/$(ID)/$(ID).fq data/$(ID)/$(ID).fq.md5
+data/na12878-chr11/na12878-chr11.fq.gz:
+	echo "Downloading na12878 chr11 bam..."
+	mkdir -p data/na12878-chr11 data/references
+	wget -O data/na12878-chr11/na12878-chr11.original.bam \
+		http://s3.amazonaws.com/nanopore-human-wgs/chr11.sorted.bam
+	echo "Converting bam to fq..."
+	$(DOCKER_RUN) \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+		fastq na12878-chr11.original.bam -0 na12878-chr11.fq.gz
+
+#
+# Map sample to hg38 creating a sorted and indexed bam
+#
+
+%.sam: %.fq.gz data/references/hg38.fa data/references/hg38.fa.fai
 	echo "Mapping reads to reference genome..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
-		-v `realpath data/references`:/references \
+	$(DOCKER_RUN) \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont -t $(CPU) --MD /references/hg38.fa /data/$(ID).fq
-	mv data/$(ID)/minimap2.sam data/$(ID)/$(ID).minimap2_hg38.sam
-	mv data/$(ID)/minimap2.log data/$(ID)/$(ID).minimap2_hg38.log
+		-ax map-ont --MD /references/hg38.fa $(PREREQ)
+	mv $(@D)/minimap2.sam $(@)
 
-data/$(ID)/$(ID).minimap2_hg38_sorted.bam: data/$(ID)/$(ID).minimap2_hg38.sam
-	echo "Converting sam to sorted bam with index..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
+%.bam: %.sam
+	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		view -S -b /data/$(ID).minimap2_hg38.sam -o /data/$(ID).minimap2_hg38.bam
-	echo "Sorting bam..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
+		view -S -b $(PREREQ) -o $(TARGET)
+
+%.sorted.bam: %.bam
+	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		sort /data/$(ID).minimap2_hg38.bam -o /data/$(ID).minimap2_hg38_sorted.bam
-	echo "Indexing bam..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
+		sort $(PREREQ) -o $(TARGET)
+
+%.sorted.bam.bai: %.sorted.bam
+	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		index /data/$(ID).minimap2_hg38_sorted.bam
+		index $(PREREQ)
 
 #
 # Call variants against hg38
 #
 
-data/references/trainedModels:
-	cd data/references && curl http://www.bio8.cs.hku.hk/trainedModels.tbz | tar -jxf -
+%.sniffles.vcf: %.sorted.bam data/references/hg38.fa
+	echo "Calling variants with sniffles..."
+	$(DOCKER_RUN) \
+		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
+		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
 
-data/$(ID)/$(ID).hg38_lite.vcf: \
-	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa data/references/trainedModels
-	echo "Calling variants against hg38..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		-v `realpath data/references`:/references \
-		--user `id -u`:`stat -c "%g" data/` \
+%.svim.vcf: %.sorted.bam %.sorted.bam.bai data/references/hg38.fa
+	echo "Calling variants with svim..."
+	$(DOCKER_RUN) \
+		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
+		svim alignment /data/svim /data/$(PREREQ) /references/hg38.fa --sample $(TARGET)
+	mv $(@D)/svim/final_results.vcf $(@)
+
+data/references/clairvoyante:
+	echo "Downloading clairvoyante trained model..."
+	cd data/references && curl http://www.bio8.cs.hku.hk/trainedModels.tbz | tar -jxf -
+	mv data/references/trainedModels data/references/clairvoyante
+
+# REMIND: Remove start/end and sort how to do all chromosomes when with GPU
+%.clairvoyante.vcf: \
+	%.sorted.bam %.sorted.bam.bai data/references/clairvoyante data/references/hg38.fa
+	echo "Calling variants with clairvoyante..."
+	$(DOCKER_RUN) \
 		-e CUDA_VISIBLE_DEVICES="" \
 		lifebitai/clairvoyante:latest \
 		pypy /opt/conda/bin/clairvoyante/callVarBam.py \
-			--chkpnt_fn /references/trainedModels/fullv3-illumina-novoalign-hg001+hg002-hg38/learningRate1e-3.epoch500 \
+			--chkpnt_fn /references/clairvoyante/fullv3-illumina-novoalign-hg001+hg002-hg38/learningRate1e-3.epoch500 \
 			--ref_fn /references/hg38.fa \
-			--bam_fn /data/$(ID).minimap2_hg38_sorted.bam \
-			--call_fn /data/$(ID).hg38_lite.vcf \
-			--ctgName chr20 \
+			--bam_fn /data/$(PREREQ) \
+			--call_fn /data/$(TARGET) \
+			--ctgName chr11 \
 			--ctgStart 1000000 \
 			--ctgEnd 1010000
 
@@ -118,22 +165,4 @@ benchmark:
 		-p /data/diff -n=2 \
 		/data/$(ID).hg38_lite.vcf.gz \
 		/references/HG002_GRCh38_GIAB_highconf_CG-Illfb-IllsentieonHC-Ion-10XsentieonHC-SOLIDgatkHC_CHROM1-22_v.3.3.2_highconf_triophased.vcf.gz
-
-data/$(ID)/$(ID).hg38_sv_svim.vcf: \
-	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
-	echo "Calling structural variants with SVIM against hg38..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		-v `realpath data/references`:/references \
-		--user `id -u`:`stat -c "%g" data/` \
-		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
-		svim alignment /data/svim_$(ID) /data/$(ID).minimap2_hg38_sorted.bam /references/hg38.fa --sample $(ID)
-	mv data/$(ID)/svim_$(ID)/final_results.vcf data/$(ID)/$(ID).hg38_sv_svim.vcf
-
-data/$(ID)/$(ID).hg38_sv_sniffles.vcf: \
-	data/$(ID)/$(ID).minimap2_hg38_sorted.bam data/references/hg38.fa
-	echo "Calling structural variants with Sniffles against hg38..."
-	docker run -it --rm --cpus="$(CPU)" -v `realpath data/$(ID)`:/data \
-		--user `id -u`:`stat -c "%g" data/` \
-		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
-		sniffles -m /data/$(ID).minimap2_hg38_sorted.bam -v /data/$(ID).hg38_sv_sniffles.vcf --genotype -t $(CPU)
 
