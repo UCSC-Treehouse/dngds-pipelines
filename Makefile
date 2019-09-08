@@ -21,20 +21,6 @@ DOCKER_RUN = docker run -it --rm --cpus="32" \
 		-v `realpath data/references`:/references \
 		-v `realpath $(@D)`:/data
 
-# Default downloads chr11 and generates all artifacts
-default:
-	data/na12878-chr11/na12878-chr11.fq.gz \
-	data/na12878-chr11/na12878-chr11.sniffles.vcf \
-	data/na12878-chr11/na12878-chr11.svim.vcf \
-	data/na12878-chr11/na12878-chr11.clairvoyante.vcf
-
-# Rule to generate all artifacts in data/id/
-data/%: %.fq.gz %.sniffles.vcf %.svim.vcf %.clairvoyante.vcf
-	data/na12878-chr11/na12878-chr11.fq.gz \
-	data/na12878-chr11/na12878-chr11.sniffles.vcf \
-	data/na12878-chr11/na12878-chr11.svim.vcf \
-	data/na12878-chr11/na12878-chr11.clairvoyante.vcf
-
 #
 # General recipes
 #
@@ -78,7 +64,7 @@ data/na12878-chr11/na12878-chr11.fq.gz:
 # Map sample to hg38 creating a sorted and indexed bam
 #
 
-%.sam: %.fq.gz data/references/hg38.fa data/references/hg38.fa.fai
+%.sam: %.fq.gz %.fq.gz.md5 data/references/hg38.fa data/references/hg38.fa.fai
 	echo "Mapping reads to reference genome..."
 	$(DOCKER_RUN) \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \

@@ -11,18 +11,23 @@ Tooling to run primary, secondary and tertiary pipelines for the UCSC Undiagnose
 * GPU for clairvoyant
 
 ## Quick Start
-Clone this repo, download chromosome 11 sample and run all pipelines
+Clone this repo, create data directory and download references and a chromosome 11 sample and run the sniffles variant caller:
 ```bash
 git clone https://github.com/ucsc-upd/pipelines.git
 cd pipelines
-make
+mkdir data
+make data/na12878-chr11/na12878-chr11.sniffles.vcf
 ```
 NOTE: The data directory can be a symbolic link (i.e. to a scratch location)
-
-Several vcf files will be generated as well as various intermediate results.
 
 ## Additional Samples
 To process additional samples place their fastq in data/<id>/<id>.fq.gz and call make for any specific target. For example:
 ```
 make data/<id>/<id>.sniffles.vcf
+```
+
+## Other Targets
+```
+make data/na12878-chr11/na12878-chr11.svim.vcf
+make data/na12878-chr11/na12878-chr11.clairvoyant.vcf
 ```
