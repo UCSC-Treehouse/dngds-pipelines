@@ -11,16 +11,16 @@ Tooling to run primary, secondary and tertiary pipelines for the UCSC Undiagnose
 * GPU for clairvoyant
 
 ## Quick Start
-Clone this repo, create data directory and download references and a chromosome 11 sample and run the sniffles variant caller:
+Clone this repo, create samples and references directories, download references, a chromosome 11 sample and run the sniffles variant caller:
 ```bash
 git clone https://github.com/ucsc-upd/pipelines.git
 cd pipelines
-mkdir data
-make data/na12878-chr11/na12878-chr11.sniffles.vcf
+mkdir -p samples references
+make samples/na12878-chr11/na12878-chr11.sniffles.vcf
 ```
-NOTE: The data directory can be a symbolic link (i.e. to a scratch location)
+NOTE: The samples and references directories can be a symbolic links (i.e. to a scratch location or into a shared file system)
 
-This will take approximately 72 minutes using 32 cores and genereate the following output in data/na12878-chr11:
+This will take approximately 72 minutes using 32 cores and genereate the following output in samples/na12878-chr11:
 ```
 1.3K Sep  8 11:00 minimap2.log
 4.7G Sep  8 11:10 na12878-chr11.bam
@@ -33,13 +33,13 @@ This will take approximately 72 minutes using 32 cores and genereate the followi
 ```
 
 ## Additional Samples
-To process additional samples place their fastq in data/<id>/<id>.fq.gz and call make for any specific target. For example:
+To process additional samples place their fastq in samples/<id>/<id>.fq.gz and call make for any specific target. For example:
 ```
-make data/<id>/<id>.sniffles.vcf
+make samples/<id>/<id>.sniffles.vcf
 ```
 
 ## Other Targets
 ```
-make data/na12878-chr11/na12878-chr11.svim.vcf
-make data/na12878-chr11/na12878-chr11.clairvoyant.vcf
+make samples/na12878-chr11/na12878-chr11.svim.vcf
+make samples/na12878-chr11/na12878-chr11.clairvoyant.vcf
 ```
