@@ -94,13 +94,13 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Calling variants with sniffles..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
-		sniffles -m /samples/$(PREREQ) -v /samples/$(TARGET) --genotype
+		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
 
 %.svim.vcf: %.sorted.bam %.sorted.bam.bai references/hg38.fa
 	echo "Calling variants with svim..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
-		svim alignment /samples/svim /samples/$(PREREQ) /references/hg38.fa --sample $(TARGET)
+		svim alignment /data/svim /data/$(PREREQ) /references/hg38.fa --sample $(TARGET)
 	mv $(@D)/svim/final_results.vcf $(@)
 
 references/clairvoyante:
@@ -118,8 +118,8 @@ references/clairvoyante:
 		pypy /opt/conda/bin/clairvoyante/callVarBam.py \
 			--chkpnt_fn /references/clairvoyante/fullv3-illumina-novoalign-hg001+hg002-hg38/learningRate1e-3.epoch500 \
 			--ref_fn /references/hg38.fa \
-			--bam_fn /samples/$(PREREQ) \
-			--call_fn /samples/$(TARGET) \
+			--bam_fn /data/$(PREREQ) \
+			--call_fn /data/$(TARGET) \
 			--ctgName chr11 \
 			--ctgStart 1000000 \
 			--ctgEnd 1010000
