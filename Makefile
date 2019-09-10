@@ -14,9 +14,11 @@ PREREQ = $(<F)
 # filename of the target generated from the prerequisite ex. sample.bam
 TARGET = $(@F)
 
+CPU = 32
+
 # Run as the calling user and samples directory group and
 # map the sample into /data and references into /references
-DOCKER_RUN = docker run -it --rm --cpus="32" \
+DOCKER_RUN = docker run -it --rm --cpus="$(CPU)" \
 		--user `id -u`:`stat -c "%g" samples/` \
 		-v `realpath references`:/references \
 		-v `realpath $(@D)`:/data
@@ -49,6 +51,9 @@ references/hg38.fa.fai: references/hg38.fa
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
 # and convert to fq as a test sample
 #
+# For a whole genome version download:
+# http://s3.amazonaws.com/nanopore-human-wgs/rel6/rel_6.fastq.gz
+#
 
 samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Downloading na12878 chr11 bam..."
@@ -68,7 +73,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Mapping reads to reference genome..."
 	$(DOCKER_RUN) \
 		tpesout/minimap2@sha256:5df3218ae2afebfc06189daf7433f1ade15d7cf77d23e7351f210a098eb57858 \
-		-ax map-ont --MD /references/hg38.fa $(PREREQ)
+		-ax map-ont --MD -t $(CPU) /references/hg38.fa $(PREREQ)
 	mv $(@D)/minimap2.sam $(@)
 
 %.bam: %.sam
