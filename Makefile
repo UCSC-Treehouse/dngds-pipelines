@@ -79,12 +79,12 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 %.bam: %.sam
 	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		view -S -b $(PREREQ) -o $(TARGET)
+		view -S -b $(PREREQ) -o $(TARGET) -@ $(CPU)
 
 %.sorted.bam: %.bam
 	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		sort $(PREREQ) -o $(TARGET)
+		sort $(PREREQ) -o $(TARGET) -@ $(CPU)
 
 %.sorted.bam.bai: %.sorted.bam
 	$(DOCKER_RUN) \
