@@ -109,7 +109,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 %.sniffles.freqGnomADcov10.vcf: %.sniffles.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
 	echo "Annotating SV frequency using the gnomAD-SV catalog..."
 	$(DOCKER_RUN) \
-		jmonlong/sveval@sha256:e34bde2282316637bb197bf8d4305f9085659bd043d85ead32159e4a1404323f \
+		jmonlong/sveval@sha256:719143592e86279d0748797044906305a42c6ac9af01fcad70fe6fa1a1aa5a04 \
 		R -e "sveval::freqAnnotate('$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='$(TARGET)', cov=.1)"
 
 %.svim.vcf: %.sorted.bam %.sorted.bam.bai references/hg38.fa
