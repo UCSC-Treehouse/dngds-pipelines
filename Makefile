@@ -47,6 +47,11 @@ references/hg38.fa.fai: references/hg38.fa
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		faidx /references/hg38.fa
 
+references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
+	echo "Downloading SV catalog from gnomAD-SV..."
+	mkdir -p references
+	wget -N -P references https://storage.googleapis.com/jmonlong-vg-wdl-dev-test/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
 # and convert to fq as a test sample
@@ -100,6 +105,12 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
 		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
+
+%.sniffles.freqGnomADcov10.vcf: %.sniffles.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+	echo "Annotating SV frequency using the gnomAD-SV catalog..."
+	$(DOCKER_RUN) \
+		jmonlong/sveval@sha256:e34bde2282316637bb197bf8d4305f9085659bd043d85ead32159e4a1404323f \
+		R -e "sveval::freqAnnotate('$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='$(TARGET)', cov=.1)"
 
 %.svim.vcf: %.sorted.bam %.sorted.bam.bai references/hg38.fa
 	echo "Calling variants with svim..."
