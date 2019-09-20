@@ -140,6 +140,13 @@ references/clairvoyante:
 			--ctgStart 1000000 \
 			--ctgEnd 1010000
 
+##
+## Reports
+##
+
+sv-report.pdf: na12878-chr11.sniffles.ann.vcf
+	Rscript -e 'rma	rkdown::render("sv-report.Rmd")' na12878-chr11.sniffles.ann.vcf
+
 benchmark:
 	# BROKEN - not ready to use yet
 	# Compare the region we tried to call variants on to the ground truth from GIAB

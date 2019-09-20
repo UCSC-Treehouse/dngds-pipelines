@@ -1,0 +1,74 @@
+---
+title: Structural Variation Report
+author: UPD-UCSC
+output: pdf_document
+---
+
+```{r include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
+```
+
+```{r setup}
+## Read input arguments
+## 1: VCF file from Sniffles
+args = commandArgs(TRUE)
+
+## Load packages
+library(VariantAnnotation)
+library(dplyr)
+library(knitr)
+library(kableExtra)
+
+## Parse the SnpEff field EFF
+parseEff <- function(eff){
+  effect = gsub('(.*)\\(.*\\)', '\\1', eff)
+  target = gsub('.*\\((.*)\\)', '\\1', eff)
+  target = strsplit(target, '\\|')[[1]]
+  return(tibble(effect=effect, impact=target[[1]], gene=target[[6]],
+              target.type=target[[7]]))
+}
+
+## Read vcfs
+vcf = readVcf(args[1], genome='')
+```
+
+
+# High impact variants affecting protein-coding genes
+
+```{r highimpact, results='asis'}
+high.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('HIGH', effs)))))
+eff.df = lapply(high.ii, function(ii){
+  effs = lapply(info(vcf)$EFF[[ii]], parseEff)
+  effs = do.call(rbind, effs)
+  effs$id = ii
+  effs
+})
+eff.df = do.call(rbind, eff.df)
+
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding')
+
+t = lapply(unique(high.df$id), function(ii){
+  vcf = vcf[ii]
+  res = tibble(
+    chr=as.character(seqnames(rowRanges(vcf))),
+    start=start(rowRanges(vcf)),
+    type=info(vcf)$SVTYPE,
+    size=info(vcf)$SVLEN,
+    quality=rowRanges(vcf)$QUAL,
+    reads=info(vcf)$RE)
+  df = high.df %>% filter(id==ii) %>% select(gene, effect) %>% unique
+  cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
+  res %>% kable(booktabs=TRUE) %>% cat
+  cat('\n\n### Effect(s) \n\n')
+  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
+    kable(booktabs=TRUE) %>% column_spec(2, width='10cm') %>% cat
+})
+```
+
+# Next
+
+- Filter variants by frequency.
+- Filter genes by LoF intolerance score from gnomAD.
+- Filter genes from our in-house list.
+- Filter variants based on the call quality.
+- Merge both VCFs.
