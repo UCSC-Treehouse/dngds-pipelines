@@ -106,18 +106,18 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a \
 		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
 
-%.sniffles.freqGnomADcov10.vcf: %.sniffles.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
-	echo "Annotating SV frequency using the gnomAD-SV catalog..."
-	$(DOCKER_RUN) \
-		jmonlong/sveval@sha256:719143592e86279d0748797044906305a42c6ac9af01fcad70fe6fa1a1aa5a04 \
-		R -e "sveval::freqAnnotate('$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='$(TARGET)', cov=.1)"
-
 %.svim.vcf: %.sorted.bam %.sorted.bam.bai references/hg38.fa
 	echo "Calling variants with svim..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
 		svim alignment /data/svim /data/$(PREREQ) /references/hg38.fa --sample $(TARGET)
 	mv $(@D)/svim/final_results.vcf $(@)
+
+%.freqGnomADcov10.vcf: %.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+	echo "Annotating SV frequency using the gnomAD-SV catalog..."
+	$(DOCKER_RUN) \
+		jmonlong/sveval@sha256:719143592e86279d0748797044906305a42c6ac9af01fcad70fe6fa1a1aa5a04 \
+		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
 
 references/clairvoyante:
 	echo "Downloading clairvoyante trained model..."
