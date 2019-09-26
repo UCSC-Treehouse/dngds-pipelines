@@ -1,6 +1,9 @@
 ---
 title: Structural Variation Report
 author: UPD-UCSC
+header-includes:
+- \usepackage{booktabs}
+- \usepackage{makecell}
 output: pdf_document
 ---
 
@@ -12,8 +15,10 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 ## Read input arguments
 ## 1: VCF file from Sniffles
 args = commandArgs(TRUE)
+args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt')
 
 ## Load packages
+library(sveval)
 library(VariantAnnotation)
 library(dplyr)
 library(knitr)
@@ -28,35 +33,123 @@ parseEff <- function(eff){
               target.type=target[[7]]))
 }
 
-## Read vcfs
-vcf = readVcf(args[1], genome='')
+## Read both VCFs
+vcf.sn = readSVvcf(args[1], vcf.object=TRUE)
+vcf.sv = readSVvcf(args[2], vcf.object=TRUE)
+
+## Make GRanges object for the overlap
+gr.sn = rowRanges(vcf.sn)
+end(gr.sn) = info(vcf.sn)$END
+gr.sn$size = info(vcf.sn)$SIZE
+gr.sn$type = info(vcf.sn)$SVTYPE
+gr.sn$GT = 'hom'
+gr.sn$ID = 1:length(vcf.sn)
+gr.sv = rowRanges(vcf.sv)
+end(gr.sv) = info(vcf.sv)$END
+gr.sv$size = info(vcf.sv)$SIZE
+gr.sv$type = info(vcf.sv)$SVTYPE
+gr.sv$GT = 'hom'
+gr.sv$ID = 1:length(vcf.sv)
+
+## Overlap and add a column with overlap
+ol.o = svOverlap(gr.sn, gr.sv)
+info(vcf.sn)$METHODS = 1
+info(vcf.sn)$METHODS[ol.o$query$ID] = 2
+info(vcf.sv)$METHODS = 1
+info(vcf.sv)$METHODS[ol.o$subject$ID] = 2
+info(vcf.sn)$METHOD = 'Sniffles'
+info(vcf.sv)$METHOD = 'SVIM'
+
+## Read gene list
+genes = read.table(args[3], as.is=TRUE, header=TRUE)
+
+## DEBUG
+genes$hgnc_symbol[1] = 'MUC5B'
 ```
 
-
-# High impact variants affecting protein-coding genes
-
-```{r highimpact, results='asis'}
-high.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('HIGH', effs)))))
-eff.df = lapply(high.ii, function(ii){
-  effs = lapply(info(vcf)$EFF[[ii]], parseEff)
-  effs = do.call(rbind, effs)
-  effs$id = ii
-  effs
+```{r highimpact}
+eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
+  high.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('HIGH', effs)))))
+  eff.df = lapply(high.ii, function(ii){
+    effs = lapply(info(vcf)$EFF[[ii]], parseEff)
+    effs = do.call(rbind, effs)
+    effs$id = ii
+    effs
+  })
+  eff.df = do.call(rbind, eff.df)
+  eff.df$method = info(vcf)$METHOD[1]
+  eff.df
 })
 eff.df = do.call(rbind, eff.df)
+```
 
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding')
+# High impact variants in genes of interest
 
-t = lapply(unique(high.df$id), function(ii){
-  vcf = vcf[ii]
+Genes of interest include: `r sort(genes$hgnc_symbol)`.
+
+Note: for testing purpose I added *MUC5B* to the list of genes.
+
+```{r genesel, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>% arrange(gene)
+high.ii = high.df %>% select(id, method) %>% unique
+
+t = lapply(1:nrow(high.ii), function(ii){
+  id.ii = high.ii$id[ii]
+  if(high.ii$method[ii] == 'Sniffles'){
+    vcf = vcf.sn[id.ii]
+    reads = info(vcf.sn)$RE[id.ii]
+  } else {
+    vcf = vcf.sv[id.ii]
+    reads = info(vcf.sv)$SUPPORT[id.ii]
+  }
   res = tibble(
     chr=as.character(seqnames(rowRanges(vcf))),
     start=start(rowRanges(vcf)),
     type=info(vcf)$SVTYPE,
     size=info(vcf)$SVLEN,
-    quality=rowRanges(vcf)$QUAL,
-    reads=info(vcf)$RE)
-  df = high.df %>% filter(id==ii) %>% select(gene, effect) %>% unique
+    ## quality=rowRanges(vcf)$QUAL,
+    reads=reads,
+    gnomad.freq=info(vcf)$AFMAX,
+    method=info(vcf)$METHOD,
+    nb.methods=info(vcf)$METHODS)
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  ## PDF version
+  cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
+  res %>% kable(booktabs=TRUE) %>% cat
+  cat('\n\n### Effect(s) \n\n')
+  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
+    kable(booktabs=TRUE) %>% column_spec(2, width='10cm') %>% cat
+})
+```
+
+# High impact variants affecting other protein-coding genes
+
+```{r proteincoding, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding',
+                            !(gene %in% genes$hgnc_symbol)) %>% arrange(gene)
+high.ii = high.df %>% select(id, method) %>% unique
+
+t = lapply(1:nrow(high.ii), function(ii){
+  id.ii = high.ii$id[ii]
+  if(high.ii$method[ii] == 'Sniffles'){
+    vcf = vcf.sn[id.ii]
+    reads = info(vcf.sn)$RE[id.ii]
+  } else {
+    vcf = vcf.sv[id.ii]
+    reads = info(vcf.sv)$SUPPORT[id.ii]
+  }
+  res = tibble(
+    chr=as.character(seqnames(rowRanges(vcf))),
+    start=start(rowRanges(vcf)),
+    type=info(vcf)$SVTYPE,
+    size=info(vcf)$SVLEN,
+    ## quality=rowRanges(vcf)$QUAL,
+    reads=reads,
+    gnomad.freq=info(vcf)$AFMAX,
+    method=info(vcf)$METHOD,
+    nb.methods=info(vcf)$METHODS)
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  ## PDF version
   cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
   res %>% kable(booktabs=TRUE) %>% cat
   cat('\n\n### Effect(s) \n\n')
@@ -67,8 +160,4 @@ t = lapply(unique(high.df$id), function(ii){
 
 # Next
 
-- Filter variants by frequency.
-- Filter genes by LoF intolerance score from gnomAD.
-- Filter genes from our in-house list.
-- Filter variants based on the call quality.
-- Merge both VCFs.
+- Add LoF intolerance score from gnomAD.
