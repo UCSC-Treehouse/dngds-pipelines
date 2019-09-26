@@ -83,6 +83,10 @@ eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
 eff.df = do.call(rbind, eff.df)
 ```
 
+The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
+
+The variants "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
+
 # High impact variants in genes of interest
 
 Genes of interest include: `r sort(genes$hgnc_symbol)`.
@@ -103,16 +107,16 @@ t = lapply(1:nrow(high.ii), function(ii){
     reads = info(vcf.sv)$SUPPORT[id.ii]
   }
   res = tibble(
-    chr=as.character(seqnames(rowRanges(vcf))),
-    start=start(rowRanges(vcf)),
     type=info(vcf)$SVTYPE,
+    pos=paste0('[', as.character(seqnames(rowRanges(vcf))), ':', start(rowRanges(vcf)), '](https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', as.character(seqnames(rowRanges(vcf))), '%3A', start(rowRanges(vcf))-500, '-', start(rowRanges(vcf))+500, ')')
     size=info(vcf)$SVLEN,
     ## quality=rowRanges(vcf)$QUAL,
     reads=reads,
     gnomad.freq=info(vcf)$AFMAX,
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique %>%
+    mutate(gene=paste0('[', gene, '](https://www.ncbi.nlm.nih.gov/gene?term=(', gene, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D)'))
   ## PDF version
   cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
   res %>% kable(booktabs=TRUE) %>% cat
@@ -139,16 +143,16 @@ t = lapply(1:nrow(high.ii), function(ii){
     reads = info(vcf.sv)$SUPPORT[id.ii]
   }
   res = tibble(
-    chr=as.character(seqnames(rowRanges(vcf))),
-    start=start(rowRanges(vcf)),
     type=info(vcf)$SVTYPE,
+    pos=paste0('[', as.character(seqnames(rowRanges(vcf))), ':', start(rowRanges(vcf)), '](https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', as.character(seqnames(rowRanges(vcf))), '%3A', start(rowRanges(vcf))-500, '-', start(rowRanges(vcf))+500, ')')
     size=info(vcf)$SVLEN,
     ## quality=rowRanges(vcf)$QUAL,
     reads=reads,
     gnomad.freq=info(vcf)$AFMAX,
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique %>%
+    mutate(gene=paste0('[', gene, '](https://www.ncbi.nlm.nih.gov/gene?term=(', gene, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D)'))
   ## PDF version
   cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
   res %>% kable(booktabs=TRUE) %>% cat
