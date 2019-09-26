@@ -4,7 +4,6 @@ author: UPD-UCSC
 header-includes:
 - \usepackage{booktabs}
 - \usepackage{makecell}
-- \usepackage{makecell}
 urlcolor: teal
 output:
   pdf_document:
@@ -181,3 +180,4 @@ t = lapply(1:nrow(high.ii), function(ii){
 # Next
 
 - Add LoF intolerance score from gnomAD.
+- Rank variants by priority (effect + frequency + pli score).
