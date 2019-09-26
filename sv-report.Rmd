@@ -4,7 +4,11 @@ author: UPD-UCSC
 header-includes:
 - \usepackage{booktabs}
 - \usepackage{makecell}
-output: pdf_document
+- \usepackage{makecell}
+urlcolor: teal
+output:
+  pdf_document:
+   keep_tex: true 
 ---
 
 ```{r include=FALSE}
@@ -32,6 +36,16 @@ parseEff <- function(eff){
   return(tibble(effect=effect, impact=target[[1]], gene=target[[6]],
               target.type=target[[7]]))
 }
+mdLinkGenes <- function(genes){
+  paste0('[', genes, '](https://www.ncbi.nlm.nih.gov/gene?term=(', genes, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D)')
+}
+latexLinkGenes <- function(genes){
+  paste0('{\\href{https://www.ncbi.nlm.nih.gov/gene?term=(', genes, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D}{', genes, '}}')
+}
+latexLinkPos <- function(chr, pos){
+  paste0('{\\href{https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A', pos-500, '-', pos+500, '}{', chr, ':', pos, '}}')
+}
+col.width='13cm'
 
 ## Read both VCFs
 vcf.sn = readSVvcf(args[1], vcf.object=TRUE)
@@ -85,13 +99,13 @@ eff.df = do.call(rbind, eff.df)
 
 The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
 
-The variants "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
+The variants' "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
 
 # High impact variants in genes of interest
 
-Genes of interest include: `r sort(genes$hgnc_symbol)`.
+Genes of interest: `r sort(genes$hgnc_symbol)`.
 
-Note: for testing purpose I added *MUC5B* to the list of genes.
+Note: for testing purposes I added *MUC5B* to the list of genes.
 
 ```{r genesel, results='asis'}
 high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>% arrange(gene)
@@ -107,22 +121,23 @@ t = lapply(1:nrow(high.ii), function(ii){
     reads = info(vcf.sv)$SUPPORT[id.ii]
   }
   res = tibble(
+    pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
     type=info(vcf)$SVTYPE,
-    pos=paste0('[', as.character(seqnames(rowRanges(vcf))), ':', start(rowRanges(vcf)), '](https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', as.character(seqnames(rowRanges(vcf))), '%3A', start(rowRanges(vcf))-500, '-', start(rowRanges(vcf))+500, ')')
     size=info(vcf)$SVLEN,
     ## quality=rowRanges(vcf)$QUAL,
     reads=reads,
     gnomad.freq=info(vcf)$AFMAX,
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique %>%
-    mutate(gene=paste0('[', gene, '](https://www.ncbi.nlm.nih.gov/gene?term=(', gene, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D)'))
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
   ## PDF version
-  cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
-  res %>% kable(booktabs=TRUE) %>% cat
+  cat('\n\n## ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
+  res %>% kable(booktabs=TRUE, escape=FALSE) %>% cat
   cat('\n\n### Effect(s) \n\n')
-  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
-    kable(booktabs=TRUE) %>% column_spec(2, width='10cm') %>% cat
+  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
+                effect=gsub('_', '\\\\_', effect),
+                gene=latexLinkGenes(gene)) %>%
+    kable(booktabs=TRUE, escape=FALSE) %>% column_spec(2, width=col.width) %>% cat
 })
 ```
 
@@ -143,22 +158,23 @@ t = lapply(1:nrow(high.ii), function(ii){
     reads = info(vcf.sv)$SUPPORT[id.ii]
   }
   res = tibble(
+    pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
     type=info(vcf)$SVTYPE,
-    pos=paste0('[', as.character(seqnames(rowRanges(vcf))), ':', start(rowRanges(vcf)), '](https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', as.character(seqnames(rowRanges(vcf))), '%3A', start(rowRanges(vcf))-500, '-', start(rowRanges(vcf))+500, ')')
     size=info(vcf)$SVLEN,
     ## quality=rowRanges(vcf)$QUAL,
     reads=reads,
     gnomad.freq=info(vcf)$AFMAX,
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique %>%
-    mutate(gene=paste0('[', gene, '](https://www.ncbi.nlm.nih.gov/gene?term=(', gene, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D)'))
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
   ## PDF version
-  cat('\n\n## ', res$type, 'in', paste(unique(df$gene), collapse=' '), '\n\n')
-  res %>% kable(booktabs=TRUE) %>% cat
+  cat('\n\n## ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
+  res %>% kable(booktabs=TRUE, escape=FALSE) %>% cat
   cat('\n\n### Effect(s) \n\n')
-  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
-    kable(booktabs=TRUE) %>% column_spec(2, width='10cm') %>% cat
+  df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
+                effect=gsub('_', '\\\\_', effect),
+                gene=latexLinkGenes(gene)) %>%
+    kable(booktabs=TRUE, escape=FALSE) %>% column_spec(2, width=col.width) %>% cat
 })
 ```
 
