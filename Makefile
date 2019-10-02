@@ -21,7 +21,9 @@ CPU ?= 32
 DOCKER_RUN = docker run -it --rm --cpus="$(CPU)" \
 		--user `id -u`:`stat -c "%g" samples/` \
 		-v `realpath references`:/references \
-		-v `realpath $(@D)`:/data
+		-v `realpath $(@D)`:/data \
+		-v `realpath .`:/app \
+		-w /app
 
 #
 # General recipes
@@ -116,14 +118,17 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 %.freqGnomADcov10.vcf: %.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
 	echo "Annotating SV frequency using the gnomAD-SV catalog..."
 	$(DOCKER_RUN) \
-		jmonlong/sveval@sha256:719143592e86279d0748797044906305a42c6ac9af01fcad70fe6fa1a1aa5a04 \
+		jmonlong/sveval@sha256:09d1ac8c942eca62a0e68385ac3624425d0a71004c73bf584aa9af9048847303 \
 		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
 
 ##
 ## Reports
 ##
 
-%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf
+%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf /references/gene_position_info.txt
 	echo "Producing SV report..."
-	Rscript -e 'rma	rkdown::render("sv-report.Rmd")' $^
-	mv sv-report.pdf $(TARGET)
+	$(DOCKER_RUN) \
+		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
+		Rscript -e 'rmarkdown::render("sv-report.Rmd")' /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt
+	mv sv-report.pdf $@
+
