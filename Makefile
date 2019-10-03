@@ -21,9 +21,7 @@ CPU ?= 32
 DOCKER_RUN = docker run -it --rm --cpus="$(CPU)" \
 		--user `id -u`:`stat -c "%g" samples/` \
 		-v `realpath references`:/references \
-		-v `realpath $(@D)`:/data \
-		-v `realpath .`:/app \
-		-w /app
+		-v `realpath $(@D)`:/data
 
 #
 # General recipes
@@ -53,6 +51,10 @@ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
 	echo "Downloading SV catalog from gnomAD-SV..."
 	mkdir -p references
 	wget -N -P references https://storage.googleapis.com/jmonlong-vg-wdl-dev-test/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+
+references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz:
+	echo "Downloading LoF intolerance score from gnomAD..."
+	wget -N -P references https://storage.googleapis.com/gnomad-public/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz
 
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
@@ -125,10 +127,11 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 ## Reports
 ##
 
-%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf /references/gene_position_info.txt
+%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf /references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
+		-v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd")' /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt
+		Rscript -e 'rmarkdown::render("sv-report.Rmd")' /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz
 	mv sv-report.pdf $@
 

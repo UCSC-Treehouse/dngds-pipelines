@@ -5,7 +5,10 @@ header-includes:
 - \usepackage{booktabs}
 - \usepackage{makecell}
 urlcolor: teal
-output: pdf_document
+output:
+  pdf_document:
+    toc: true
+    toc_depth: 2
 ---
 
 ```{r include=FALSE}
@@ -17,8 +20,9 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 ## 1: VCF file from Sniffles
 ## 2: VCF file from SVIM
 ## 3: gene list file
+## 4: gene and LoF intolerance score file
 args = commandArgs(TRUE)
-args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt')
+args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz')
 
 ## Load packages
 library(sveval)
@@ -41,6 +45,9 @@ mdLinkGenes <- function(genes){
 }
 latexLinkGenes <- function(genes){
   paste0('{\\href{https://www.ncbi.nlm.nih.gov/gene?term=(', genes, '%5BGene%20Name%5D)%20AND%20Human%5BOrganism%5D}{', genes, '}}')
+}
+latexLinkPli <- function(scores, genes, digits=3){
+  paste0('{\\href{https://gnomad.broadinstitute.org/gene/', genes, '}{', round(scores, digits), '}}')
 }
 latexLinkPos <- function(chr, pos){
   paste0('{\\href{https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A', pos-500, '-', pos+500, '}{', chr, ':', pos, '}}')
@@ -77,6 +84,10 @@ info(vcf.sv)$METHOD = 'SVIM'
 ## Read gene list
 genes = read.table(args[3], as.is=TRUE, header=TRUE)
 
+## Read pli score
+pli.df = read.table(args[4], as.is=TRUE, header=TRUE, sep='\t')
+pli.df = pli.df %>% select(gene, pLI)
+
 ## FOR TESTING PURPOSE
 genes$hgnc_symbol[1] = 'MUC5B'
 ```
@@ -101,15 +112,25 @@ eff.df = do.call(rbind, eff.df)
 The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
 
 The variants' "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
+In this report we select variants with a predicted *HIGH* effect.
 
-# High impact variants in genes of interest
+The *pLI* score was computed by the [gnomAD project](https://gnomad.broadinstitute.org/).
+It represents the probability that the gene is intolerant to loss-of-function variants.
+A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
+The variants in each section are ordered to show those affecting genes with the highest pLI first.
+
+# By variant
+
+## High impact variants in genes of interest
 
 Genes of interest: `r sort(genes$hgnc_symbol)`.
 
 Note: for testing purposes I added *MUC5B* to the list of genes.
 
 ```{r genesel, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>% arrange(gene)
+high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
+  
 high.ii = high.df %>% select(id, method) %>% unique
 
 ## Write a section for each variant
@@ -133,23 +154,25 @@ t = lapply(1:nrow(high.ii), function(ii){
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
   ## Effect info
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect, pLI) %>% unique
   ## Write Markdown/Latex section
-  cat('\n\n## ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
+  cat('\n\n### ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
   res %>% kable(booktabs=TRUE, escape=FALSE) %>% cat
-  cat('\n\n### Effect(s) \n\n')
+  cat('\n\n#### Effect(s) \n\n')
   df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
                 effect=gsub('_', '\\\\_', effect),
+                pLI=latexLinkPli(pLI, gene),
                 gene=latexLinkGenes(gene)) %>%
     kable(booktabs=TRUE, escape=FALSE) %>% column_spec(2, width=col.width) %>% cat
 })
 ```
 
-# High impact variants affecting other protein-coding genes
+## High impact variants affecting other protein-coding genes
 
 ```{r proteincoding, results='asis'}
 high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding',
-                            !(gene %in% genes$hgnc_symbol)) %>% arrange(gene)
+                            !(gene %in% genes$hgnc_symbol)) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
 high.ii = high.df %>% select(id, method) %>% unique
 
 ## Write a section for each variant
@@ -173,19 +196,19 @@ t = lapply(1:nrow(high.ii), function(ii){
     method=info(vcf)$METHOD,
     nb.methods=info(vcf)$METHODS)
   ## Effect info
-  df = high.df %>% filter(id==id.ii) %>% select(gene, effect) %>% unique
+  df = high.df %>% filter(id==id.ii) %>% select(gene, effect, pLI) %>% unique
   ## Write Markdown/Latex section
-  cat('\n\n## ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
+  cat('\n\n### ', res$type, 'in', paste(mdLinkGenes(unique(df$gene)), collapse=' '), '\n\n')
   res %>% kable(booktabs=TRUE, escape=FALSE) %>% cat
-  cat('\n\n### Effect(s) \n\n')
+  cat('\n\n#### Effect(s) \n\n')
   df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
                 effect=gsub('_', '\\\\_', effect),
+                pLI=latexLinkPli(pLI, gene),
                 gene=latexLinkGenes(gene)) %>%
     kable(booktabs=TRUE, escape=FALSE) %>% column_spec(2, width=col.width) %>% cat
 })
 ```
 
-# Next
+# By gene
 
-- Add LoF intolerance score from gnomAD.
-- Rank variants by priority (effect + frequency + pli score).
+*Soon...*
