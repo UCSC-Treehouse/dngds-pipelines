@@ -22,7 +22,7 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 ## 3: gene list file
 ## 4: gene and LoF intolerance score file
 args = commandArgs(TRUE)
-args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz')
+## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz')
 
 ## Load packages
 library(sveval)
@@ -49,10 +49,14 @@ latexLinkGenes <- function(genes){
 latexLinkPli <- function(scores, genes, digits=3){
   paste0('{\\href{https://gnomad.broadinstitute.org/gene/', genes, '}{', round(scores, digits), '}}')
 }
+mdLinkPli <- function(scores, genes, digits=3){
+  paste0('[',round(scores, digits), '](https://gnomad.broadinstitute.org/gene/', genes,')')
+}
 latexLinkPos <- function(chr, pos){
   paste0('{\\href{https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A', pos-500, '-', pos+500, '}{', chr, ':', pos, '}}')
 }
 col.width='13cm'
+col.width.gene='5cm'
 
 ## Read both VCFs
 vcf.sn = readSVvcf(args[1], vcf.object=TRUE)
@@ -109,6 +113,8 @@ eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
 eff.df = do.call(rbind, eff.df)
 ```
 
+# Methods
+
 The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
 
 The variants' "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
@@ -119,13 +125,13 @@ It represents the probability that the gene is intolerant to loss-of-function va
 A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
 The variants in each section are ordered to show those affecting genes with the highest pLI first.
 
+Note: for testing purposes I added *MUC5B* to the list of genes.
+
 # By variant
 
 ## High impact variants in genes of interest
 
 Genes of interest: `r sort(genes$hgnc_symbol)`.
-
-Note: for testing purposes I added *MUC5B* to the list of genes.
 
 ```{r genesel, results='asis'}
 high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
@@ -211,4 +217,107 @@ t = lapply(1:nrow(high.ii), function(ii){
 
 # By gene
 
-*Soon...*
+## Genes of interest
+
+Genes of interest: `r sort(genes$hgnc_symbol)`.
+
+```{r geneselpg, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
+  
+## Write a section for each variant
+t = lapply(unique(high.df$gene), function(gene.name){
+  df = high.df %>% filter(gene==gene.name)
+  vars = tibble()
+  if(any(df$method=='Sniffles')){
+    id.ii = df %>% filter(method=='Sniffles') %>% .$id %>% unique
+    vcf = vcf.sn[id.ii]
+    vars = tibble(
+      id=id.ii,
+      pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
+      type=info(vcf)$SVTYPE,
+      size=info(vcf)$SVLEN,
+      ## quality=rowRanges(vcf)$QUAL,
+      reads=info(vcf)$RE,
+      gnomad.freq=info(vcf)$AFMAX,
+      method=info(vcf)$METHOD,
+      nb.methods=info(vcf)$METHODS) %>% rbind(vars)
+  }
+  if(any(df$method=='SVIM')){
+    id.ii = df %>% filter(method=='SVIM') %>% .$id %>% unique
+    vcf = vcf.sv[id.ii]
+    vars = tibble(
+      id=id.ii,
+      pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
+      type=info(vcf)$SVTYPE,
+      size=info(vcf)$SVLEN,
+      ## quality=rowRanges(vcf)$QUAL,
+      reads=info(vcf)$SUPPORT,
+      gnomad.freq=info(vcf)$AFMAX,
+      method=info(vcf)$METHOD,
+      nb.methods=info(vcf)$METHODS) %>% rbind(vars)
+  }
+  vars = df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
+                       effect=gsub('_', '\\\\_', effect)) %>%
+    group_by(method, id) %>% summarize(effect=paste(effect, collapse='; ')) %>%
+    merge(vars, .) %>% ungroup %>% select(-id)
+  ## Write Markdown/Latex section
+  cat('\n\n### ', mdLinkGenes(gene.name), '\n\n')
+  cat('\n\n- pLI score: ', mdLinkPli(df$pLI[1], gene.name), '\n\n')
+  eff.coln = which(colnames(vars)=='effect')
+  vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+    column_spec(eff.coln, width=col.width.gene) %>% cat
+})
+```
+
+## Other protein-coding genes
+
+```{r proteincodingpg, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding',
+                            !(gene %in% genes$hgnc_symbol)) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
+  
+## Write a section for each variant
+t = lapply(unique(high.df$gene), function(gene.name){
+  df = high.df %>% filter(gene==gene.name)
+  vars = tibble()
+  if(any(df$method=='Sniffles')){
+    id.ii = df %>% filter(method=='Sniffles') %>% .$id %>% unique
+    vcf = vcf.sn[id.ii]
+    vars = tibble(
+      id=id.ii,
+      pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
+      type=info(vcf)$SVTYPE,
+      size=info(vcf)$SVLEN,
+      ## quality=rowRanges(vcf)$QUAL,
+      reads=info(vcf)$RE,
+      gnomad.freq=info(vcf)$AFMAX,
+      method=info(vcf)$METHOD,
+      nb.methods=info(vcf)$METHODS) %>% rbind(vars)
+  }
+  if(any(df$method=='SVIM')){
+    id.ii = df %>% filter(method=='SVIM') %>% .$id %>% unique
+    vcf = vcf.sv[id.ii]
+    vars = tibble(
+      id=id.ii,
+      pos=latexLinkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf))),
+      type=info(vcf)$SVTYPE,
+      size=info(vcf)$SVLEN,
+      ## quality=rowRanges(vcf)$QUAL,
+      reads=info(vcf)$SUPPORT,
+      gnomad.freq=info(vcf)$AFMAX,
+      method=info(vcf)$METHOD,
+      nb.methods=info(vcf)$METHODS) %>% rbind(vars)
+  }
+  vars = df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
+                       effect=gsub('_', '\\\\_', effect)) %>%
+    group_by(method, id) %>% summarize(effect=paste(unique(effect), collapse='; ')) %>%
+    merge(vars, .) %>% ungroup %>% select(-id)
+  ## Write Markdown/Latex section
+  cat('\n\n### ', mdLinkGenes(gene.name), '\n\n')
+  cat('\n\n- pLI score: ', mdLinkPli(df$pLI[1], gene.name), '\n\n')
+  eff.coln = which(colnames(vars)=='effect')
+  vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+    column_spec(eff.coln, width=col.width.gene) %>% cat
+})
+```
