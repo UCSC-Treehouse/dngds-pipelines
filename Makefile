@@ -47,6 +47,26 @@ references/hg38.fa.fai: references/hg38.fa
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		faidx /references/hg38.fa
 
+references/gene_position_info.txt:
+	echo "Downloading gene list..."
+	mkdir -p references
+	wget -N -P references https://github.com/ucsc-upd/operations/files/3628601/gene_position_info.txt
+
+references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
+	echo "Downloading SV catalog from gnomAD-SV..."
+	mkdir -p references
+	wget -N -P references https://storage.googleapis.com/jmonlong-vg-wdl-dev-test/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+
+references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz:
+	echo "Downloading LoF intolerance score from gnomAD..."
+	mkdir -p references
+	wget -N -P references https://storage.googleapis.com/gnomad-public/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz
+
+references/simpleRepeat.txt.gz:
+	echo "Downloading repeat annotation..."
+	mkdir -p references
+	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
+
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
 # and convert to fq as a test sample
@@ -107,3 +127,30 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442 \
 		svim alignment /data/svim /data/$(PREREQ) /references/hg38.fa --sample $(TARGET)
 	mv $(@D)/svim/final_results.vcf $(@)
+
+%.freqGnomADcov10.vcf: %.vcf references/gnomad_v2_sv.sites.pass.lifted.vcf.gz
+	echo "Annotating SV frequency using the gnomAD-SV catalog..."
+	$(DOCKER_RUN) \
+		jmonlong/sveval@sha256:09d1ac8c942eca62a0e68385ac3624425d0a71004c73bf584aa9af9048847303 \
+		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
+
+##
+## Reports
+##
+
+%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
+	echo "Producing SV report..."
+	$(DOCKER_RUN) \
+		-v `realpath .`:/app -w /app \
+		jmonlong/sveval-rmarkdown@sha256:d2f504ee111aeaeecdb061d0adf86aca766a8ab116c541ce208b79bc9c448cbc \
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
+	mv sv-report.pdf $@
+
+%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
+	echo "Producing SV report..."
+	$(DOCKER_RUN) \
+		-v `realpath .`:/app -w /app \
+		jmonlong/sveval-rmarkdown@sha256:d2f504ee111aeaeecdb061d0adf86aca766a8ab116c541ce208b79bc9c448cbc \
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
+	mv sv-report.html $@
+
