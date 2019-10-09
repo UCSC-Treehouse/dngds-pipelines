@@ -32,6 +32,14 @@ This will take approximately 72 minutes using 32 cores and genereate the followi
 4.8G Sep  8 11:24 na12878-chr11.sorted.bam
 ```
 
+## Structural variant report
+
+```bash
+make samples/na12878-chr11/na12878-chr11.sv-report.pdf
+## or 
+make samples/na12878-chr11/na12878-chr11.sv-report.html
+```
+
 ## Additional Samples
 To process additional samples place their fastq in samples/<id>/<id>.fq.gz and call make for any specific target. For example:
 ```
