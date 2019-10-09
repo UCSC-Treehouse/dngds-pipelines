@@ -142,7 +142,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
-		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
+		jmonlong/sveval-rmarkdown@sha256:d2f504ee111aeaeecdb061d0adf86aca766a8ab116c541ce208b79bc9c448cbc \
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.pdf $@
 
@@ -150,7 +150,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
-		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
+		jmonlong/sveval-rmarkdown@sha256:d2f504ee111aeaeecdb061d0adf86aca766a8ab116c541ce208b79bc9c448cbc \
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.html $@
 
