@@ -47,6 +47,11 @@ references/hg38.fa.fai: references/hg38.fa
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		faidx /references/hg38.fa
 
+references/gene_position_info.txt:
+	echo "Downloading gene list..."
+	mkdir -p references
+	wget -N -P references https://github.com/ucsc-upd/operations/files/3628601/gene_position_info.txt
+
 references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
 	echo "Downloading SV catalog from gnomAD-SV..."
 	mkdir -p references
@@ -54,10 +59,12 @@ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
 
 references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz:
 	echo "Downloading LoF intolerance score from gnomAD..."
+	mkdir -p references
 	wget -N -P references https://storage.googleapis.com/gnomad-public/release/2.1.1/constraint/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz
 
 references/simpleRepeat.txt.gz:
 	echo "Downloading repeat annotation..."
+	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
 
 #
