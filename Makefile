@@ -143,7 +143,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.pdf $@
 
 %.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
@@ -151,6 +151,6 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:0782c113c67fd583f6317c0868231c45bb7d02b0e24bea3e511cbdb2ee428a6e \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.html $@
 
