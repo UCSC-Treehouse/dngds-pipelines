@@ -216,9 +216,6 @@ colnames(sr) = c('chrom', 'start', 'end', 'period', 'copyNum', 'sequence')
 sr = makeGRangesFromDataFrame(sr, keep.extra.columns=TRUE)
 info(vcf.sn)$ol.simple.repeat = overlapsAny(vcf.sn, sr)
 info(vcf.sv)$ol.simple.repeat = overlapsAny(vcf.sv, sr)
-
-## FOR TESTING PURPOSE
-genes$hgnc_symbol[1] = 'MUC5B'
 ```
 
 ```{r highimpact}
@@ -249,8 +246,6 @@ The *pLI* score was computed by the [gnomAD project](https://gnomad.broadinstitu
 It represents the probability that the gene is intolerant to loss-of-function variants.
 A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
 The variants in each section are ordered to show those affecting genes with the highest pLI first.
-
-Note: for testing purposes I added *MUC5B* to the list of genes.
 
 # By gene {.tabset}
 
