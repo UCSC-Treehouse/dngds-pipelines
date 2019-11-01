@@ -67,6 +67,12 @@ references/simpleRepeat.txt.gz:
 	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
 
+references/GRCh38.6:
+	echo "Downloading snpEff database..."
+	$(DOCKER_RUN) \
+		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
+		java -jar /usr/local/share/snpeff-4.3.1t-1/snpEff.jar download -dataDir /references GRCh38.86
+
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
 # and convert to fq as a test sample
@@ -134,9 +140,21 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		jmonlong/sveval@sha256:09d1ac8c942eca62a0e68385ac3624425d0a71004c73bf584aa9af9048847303 \
 		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
 
-##
-## Reports
-##
+%.ann.vcf: %.vcf 
+	echo "Annotating variants..."
+	$(DOCKER_RUN) \
+		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
+		java -Xmx10000m -jar /usr/local/share/snpeff-4.3.1t-1/snpEff.jar \
+		-dataDir /references \
+		-t -quiet \
+		-noNextProt -noMotif -noStats -classic \
+		-no PROTEIN_PROTEIN_INTERACTION_LOCUS -no PROTEIN_STRUCTURAL_INTERACTION_LOCUS \
+		GRCh38.86 /data/$(PREREQ) > $(@)
+	chown `id -u`:`stat -c "%g" samples/` $(@)
+
+#
+# Reports
+#
 
 %.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
 	echo "Producing SV report..."
@@ -153,4 +171,3 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		jmonlong/sveval-rmarkdown@sha256:d2f504ee111aeaeecdb061d0adf86aca766a8ab116c541ce208b79bc9c448cbc \
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.html $@
-
