@@ -47,8 +47,12 @@ parseEff <- function(eff){
   effect = gsub('(.*)\\(.*\\)', '\\1', eff)
   target = gsub('.*\\((.*)\\)', '\\1', eff)
   target = strsplit(target, '\\|')[[1]]
-  return(tibble(effect=effect, impact=target[[1]], gene=target[[6]],
-              target.type=target[[7]]))
+res = tibble(effect=effect, impact=target[[1]], gene=target[[6]],
+              target.type=target[[8]])
+res = res %>% mutate(effect=ifelse(grepl('FUSION', effect), paste0(effect, '_', gene), effect))
+res2 = res %>% filter(grepl('+', gene)) %>% mutate(gene=gsub('.*\\+(.*)', '\\1', gene))
+res = res %>% mutate(gene=gsub('(.*)\\+.*', '\\1', gene)) %>% rbind(res2)
+  return(res)
 }
 ## Format links for genes (NCBI) or genomic position (UCSC Genome Browser)
 linkGenes <- function(genes, format='html'){
@@ -195,6 +199,8 @@ gr.sv$ID = 1:length(vcf.sv)
 
 ## Overlap and add a column with overlap
 ol.o = svOverlap(gr.sn, gr.sv)
+ol.o$query = subset(ol.o$query, cov.prop>.5)
+ol.o$subject = subset(ol.o$subject, cov.prop>.5)
 info(vcf.sn)$METHODS = 1
 info(vcf.sn)$METHODS[ol.o$query$ID] = 2
 info(vcf.sv)$METHODS = 1
@@ -267,7 +273,7 @@ t = lapply(unique(high.df$gene), function(gene.name){
 ## Other protein-coding genes
 
 ```{r proteincodingpg, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding',
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING',
                             !(gene %in% genes$hgnc_symbol)) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
   
@@ -289,23 +295,27 @@ high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
   
 high.ii = high.df %>% select(id, method) %>% unique
 
+if(nrow(high.ii)>0){
 ## Write a section for each variant
 t = lapply(1:nrow(high.ii), function(ii){
   writeByVariantSection(ii, high.ii, high.df, vcf.sn, vcf.sv, format=out.format)
 })
+}
 ```
 
 ## High impact variants affecting other protein-coding genes
 
 ```{r proteincoding, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='protein_coding',
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING',
                             !(gene %in% genes$hgnc_symbol)) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
 high.ii = high.df %>% select(id, method) %>% unique
 
+if(nrow(high.ii)>0){
 ## Write a section for each variant
 t = lapply(1:nrow(high.ii), function(ii){
   writeByVariantSection(ii, high.ii, high.df, vcf.sn, vcf.sv, format=out.format)
 })
+}
 ```
 
