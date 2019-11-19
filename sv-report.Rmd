@@ -102,6 +102,7 @@ writeByGeneSection <- function(gene.name, high.df, vcf.sn, vcf.sv, format='pdf')
       reads=info(vcf)$RE,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
+      gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
@@ -117,6 +118,7 @@ writeByGeneSection <- function(gene.name, high.df, vcf.sn, vcf.sv, format='pdf')
       reads=info(vcf)$SUPPORT,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
+      gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
@@ -154,6 +156,7 @@ writeByVariantSection <- function(ii, high.ii, high.df, vcf.sn, vcf.sv, format=o
     reads=reads,
     freq=info(vcf)$AFMAX,
     simp.rep=info(vcf)$ol.simple.repeat,
+    gt=geno(vcf)$GT[,1],
     method=info(vcf)$METHOD,
     nmeths=info(vcf)$METHODS)
   ## Effect info
@@ -349,29 +352,32 @@ t = lapply(unique(high.df$gene), function(gene.name){
 ### Around genes of interest
 
 ```{r raresel, results='asis'}
-vcf.2mrare = subset(vcf.sn, METHODS==2 & AFMAX<.01)
-d.df = distanceToNearest(vcf.2mrare, genes.gr) %>% as.data.frame
-info(vcf.2mrare)$SELGENEDIST = NA
-info(vcf.2mrare)$SELGENEDIST[d.df$queryHits] = d.df$distance
-info(vcf.2mrare)$SELGENE = NA
-info(vcf.2mrare)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
+vcf.rare = subset(vcf.sn, METHODS==1 & AFMAX<.01)
+d.df = distanceToNearest(vcf.rare, genes.gr) %>% as.data.frame
+info(vcf.rare)$SELGENEDIST = NA
+info(vcf.rare)$SELGENEDIST[d.df$queryHits] = d.df$distance
+info(vcf.rare)$SELGENE = NA
+info(vcf.rare)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
+## vcf.rare = subset(vcf.rare, SELGENEDIST<1e6)
 
-vcf.2mrare.sel = subset(vcf.2mrare, SELGENEDIST<1e6)
-vcf.2mrare.sel = vcf.2mrare.sel[order(-abs(info(vcf.2mrare.sel)$SVLEN))]
+svs.df = tibble(
+  gene=info(vcf.rare)$SELGENE,
+  pos=linkPos(as.character(seqnames(rowRanges(vcf.rare))), start(rowRanges(vcf.rare)), info(vcf.rare)$SVTYPE, info(vcf.rare)$SVLEN, format=out.format),
+  type=info(vcf.rare)$SVTYPE,
+  size=info(vcf.rare)$SVLEN,
+  distance=info(vcf.rare)$SELGENEDIST,
+  freq=info(vcf.rare)$AFMAX,
+  simp.rep=info(vcf.rare)$ol.simple.repeat,
+  gt=geno(vcf.rare)$GT[,1])
+if(info(vcf.rare)$METHOD[1]=='Sniffles'){
+  svs.df$reads=info(vcf.rare)$RE
+} else {
+  svs.df$reads=info(vcf.rare)$SUPPORT
+}
 
-t = lapply(unique(info(vcf.2mrare.sel)$SELGENE), function(gene.name){
-  vcf = subset(vcf.2mrare.sel, SELGENE==gene.name)
-  vars = tibble(
-    pos=linkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf)), info(vcf)$SVTYPE, info(vcf)$SVLEN, format=out.format),
-    type=info(vcf)$SVTYPE,
-    size=info(vcf)$SVLEN,
-    freq=info(vcf)$AFMAX,
-    simp.rep=info(vcf)$ol.simple.repeat)
-  if(info(vcf)$METHOD[1]=='Sniffles'){
-    vars$reads=info(vcf)$RE
-  } else {
-    vars$reads=info(vcf)$SUPPORT
-  }
+svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
+t = lapply(unique(svs.sel$gene), function(gene.name){
+  vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
   cat('\n\n#### ', linkGenes(gene.name), '\n\n')
     cat('\n\n- pLI score: ', linkPli(subset(pli.df, gene==gene.name)$pLI, gene.name), '\n\n')
   if(out.format == 'pdf'){
@@ -388,20 +394,70 @@ t = lapply(unique(info(vcf.2mrare.sel)$SELGENE), function(gene.name){
 ### Large
 
 ```{r rarelarge, results='asis'}
-vcf.2mrare.large = subset(vcf.2mrare, abs(SVLEN)>1e3)
-vcf.2mrare.large = vcf.2mrare.large[order(-abs(info(vcf.2mrare.large)$SVLEN))]
-
-vars = tibble(
-  pos=linkPos(as.character(seqnames(rowRanges(vcf.2mrare.large))), start(rowRanges(vcf.2mrare.large)), info(vcf.2mrare.large)$SVTYPE, info(vcf.2mrare.large)$SVLEN, format=out.format),
-  type=info(vcf.2mrare.large)$SVTYPE,
-  size=info(vcf.2mrare.large)$SVLEN,
-  freq=info(vcf.2mrare.large)$AFMAX,
-  simp.rep=info(vcf.2mrare.large)$ol.simple.repeat)
-if(info(vcf.2mrare.large)$METHOD[1]=='Sniffles'){
-  vars$reads=info(vcf.2mrare.large)$RE
-} else {
-  vars$reads=info(vcf.2mrare.large)$SUPPORT
+vars = svs.df %>% filter(abs(size)>1e3) %>% select(-gene, -distance) %>% arrange(desc(abs(size)))
+if(out.format == 'pdf'){
+  vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+    cat
 }
+if(out.format == 'html'){
+  ## datatable(vars)
+  vars %>% kable(format='html') %>% kable_styling() %>% cat
+}
+```
+
+
+## Rare SVs called only one method {.tabset}
+
+### Around genes of interest
+
+```{r raresel1, results='asis'}
+svs.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
+  vcf = subset(vcf, METHODS==1 & AFMAX<.01)
+  d.df = distanceToNearest(vcf, genes.gr) %>% as.data.frame
+  info(vcf)$SELGENEDIST = NA
+  info(vcf)$SELGENEDIST[d.df$queryHits] = d.df$distance
+  info(vcf)$SELGENE = NA
+  info(vcf)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
+  ## vcf = subset(vcf, SELGENEDIST<1e6)
+  vars = tibble(
+    gene=info(vcf)$SELGENE,
+    pos=linkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf)), info(vcf)$SVTYPE, info(vcf)$SVLEN, format=out.format),
+    type=info(vcf)$SVTYPE,
+    size=info(vcf)$SVLEN,
+    distance=info(vcf)$SELGENEDIST,
+    freq=info(vcf)$AFMAX,
+    simp.rep=info(vcf)$ol.simple.repeat,
+    method=info(vcf)$METHOD,
+    gt=geno(vcf)$GT[,1])
+  if(info(vcf)$METHOD[1]=='Sniffles'){
+    vars$reads=info(vcf)$RE
+  } else {
+    vars$reads=info(vcf)$SUPPORT
+  }
+  return(vars)
+})
+svs.df = do.call(rbind, svs.df)
+
+svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
+t = lapply(unique(svs.sel$gene), function(gene.name){
+  vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
+  cat('\n\n#### ', linkGenes(gene.name), '\n\n')
+    cat('\n\n- pLI score: ', linkPli(subset(pli.df, gene==gene.name)$pLI, gene.name), '\n\n')
+  if(out.format == 'pdf'){
+    vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+      cat
+  }
+  if(out.format == 'html'){
+    ## datatable(vars)
+    vars %>% kable(format='html') %>% kable_styling() %>% cat
+  }
+})
+```
+
+### Large
+
+```{r rarelarge1, results='asis'}
+vars = svs.df %>% filter(abs(size)>1e3) %>% select(-gene, -distance) %>% arrange(desc(abs(size)))
 if(out.format == 'pdf'){
   vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
     cat
