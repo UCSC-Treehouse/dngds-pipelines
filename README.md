@@ -1,5 +1,5 @@
-# UPD Pipelines
-Tooling to run primary, secondary and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
+# DNA Nanopore Genetic Disease Study Pipelines
+Tooling to run primary, secondary and tertiary pipelines for the DNA Nanopore Genetic Disease Study
 
 ## Requirements
 * linux
