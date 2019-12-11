@@ -75,32 +75,32 @@ references/GRCh38.86:
 
 references/GRCh38.86/phastCons: references/GRCh38.86
 	echo "Downloading snpEff conservation database..."
-	mkdir -p references/GRCh38.6/phastCons
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr1.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr2.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr3.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr4.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr5.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr6.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr7.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr8.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr9.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr10.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr11.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr12.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr13.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr14.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr15.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr16.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr17.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr18.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr19.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr20.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr21.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr22.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrM.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrX.phastCons100way.wigFix.gz
-	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
+	mkdir -p references/GRCh38.86/phastCons
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr1.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr2.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr3.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr4.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr5.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr6.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr7.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr8.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr9.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr10.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr11.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr12.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr13.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr14.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr15.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr16.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr17.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr18.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr19.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr20.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr21.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr22.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrM.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrX.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
 
 
 #
