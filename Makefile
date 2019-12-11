@@ -67,13 +67,13 @@ references/simpleRepeat.txt.gz:
 	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
 
-references/GRCh38.6:
+references/GRCh38.86:
 	echo "Downloading snpEff database..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
 		java -jar /usr/local/share/snpeff-4.3.1t-1/snpEff.jar download -dataDir /references GRCh38.86
 
-references/GRCh38.6/phastCons: references/GRCh38.6
+references/GRCh38.6/phastCons: references/GRCh38.86
 	echo "Downloading snpEff conservation database..."
 	mkdir -p references/GRCh38.6/phastCons
 	wget -N -P references/GRCh38.6/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr1.phastCons100way.wigFix.gz
