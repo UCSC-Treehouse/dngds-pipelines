@@ -186,8 +186,8 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 %.sift.vcf: %.vcf references/GRCh38.86/phastCons
 	echo "Annotating variants..."
 	$(DOCKER_RUN) \
-		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
-		java -Xmx10000m -jar /usr/local/share/snpeff-4.3.1t-1/snpSift.jar \
+		quay.io/biocontainers/snpsift@sha256:2b2a0fa662bde7bd8643191c02eb35a3abd7bb426928b722bcfc4edd4e66d87d \
+		java -Xmx10000m -jar /usr/local/share/snpsift-4.2-4/SnpSift.jar \
 		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > $(@)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
