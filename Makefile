@@ -170,7 +170,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		jmonlong/sveval@sha256:fe35f70ae2765bddaf0a990d9f04f94b029c7006ebabab653d046da4566f3fbb \
 		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
 
-%.ann.vcf: %.vcf /references/GRCh38.86
+%.ann.vcf: %.vcf references/GRCh38.86
 	echo "Annotating variants..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
@@ -183,7 +183,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		GRCh38.86 /data/$(PREREQ) > $(@)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
-%.sift.vcf: %.vcf /references/GRCh38.86/phastCons
+%.sift.vcf: %.vcf references/GRCh38.86/phastCons
 	echo "Annotating variants..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
