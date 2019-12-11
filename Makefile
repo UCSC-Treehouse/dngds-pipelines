@@ -72,8 +72,11 @@ references/GRCh38.86:
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
 		java -jar /usr/local/share/snpeff-4.3.1t-1/snpEff.jar download -dataDir /references GRCh38.86
+	zcat references/GRCh38.86/regulation_DNase1-NHEK_enriched_sites.bin | sed "s/ /_/g" | gzip > references/GRCh38.86/regulation_DNase1-NHEK_enriched_sites_nospace.bin
+	zcat references/GRCh38.86/regulation_DNase1-HUVEC_enriched_sites.bin | sed "s/ /_/g" | gzip > references/GRCh38.86/regulation_DNase1-HUVEC_enriched_sites_nospace.bin
 
-references/GRCh38.86/phastCons: references/GRCh38.86
+
+references/GRCh38.86/phastCons: references/GRCh38.86 references/hg38.fa.fai
 	echo "Downloading snpEff conservation database..."
 	mkdir -p references/GRCh38.86/phastCons
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr1.phastCons100way.wigFix.gz
@@ -101,6 +104,7 @@ references/GRCh38.86/phastCons: references/GRCh38.86
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrM.phastCons100way.wigFix.gz
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrX.phastCons100way.wigFix.gz
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
+	cp references/hg38.fa.fai references/GRCh38.86/phastCons/genome.fai
 
 
 #
@@ -178,9 +182,9 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		-dataDir /references \
 		-t -quiet \
 		-noNextProt -noMotif -noStats -classic \
-		-reg DNase1-HUVEC_enriched_sites -reg DNase1-NHEK_enriched_sites \
+		-reg DNase1-HUVEC_enriched_sites_nospace -reg DNase1-NHEK_enriched_sites_nospace \
 		-no PROTEIN_PROTEIN_INTERACTION_LOCUS -no PROTEIN_STRUCTURAL_INTERACTION_LOCUS \
-		GRCh38.86 /data/$(PREREQ) > /data/$(TARGET)
+		GRCh38.86 /data/$(PREREQ) > $(@)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
 %.sift.vcf: %.vcf references/GRCh38.86/phastCons
@@ -188,14 +192,14 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpsift@sha256:2b2a0fa662bde7bd8643191c02eb35a3abd7bb426928b722bcfc4edd4e66d87d \
 		java -Xmx10000m -jar /usr/local/share/snpsift-4.2-4/SnpSift.jar \
-		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > /data/$(TARGET)
+		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > $(@)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
 #
 # Reports
 #
 
-%.sv-report.pdf: %.sniffles.ann.sift.freqGnomADcov10.vcf %.svim.ann.sift.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz sv-report.Rmd
+%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz sv-report.Rmd
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
@@ -203,7 +207,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
 	mv sv-report.pdf $@
 
-%.sv-report.html: %.sniffles.ann.sift.freqGnomADcov10.vcf %.svim.ann.sift.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
+%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
