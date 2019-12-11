@@ -180,7 +180,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		-noNextProt -noMotif -noStats -classic \
 		-reg DNase1-HUVEC_enriched_sites -reg DNase1-NHEK_enriched_sites \
 		-no PROTEIN_PROTEIN_INTERACTION_LOCUS -no PROTEIN_STRUCTURAL_INTERACTION_LOCUS \
-		GRCh38.86 /data/$(PREREQ) > $(@)
+		GRCh38.86 /data/$(PREREQ) > /data/$(TARGET)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
 %.sift.vcf: %.vcf references/GRCh38.86/phastCons
@@ -188,7 +188,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpsift@sha256:2b2a0fa662bde7bd8643191c02eb35a3abd7bb426928b722bcfc4edd4e66d87d \
 		java -Xmx10000m -jar /usr/local/share/snpsift-4.2-4/SnpSift.jar \
-		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > $(@)
+		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > /data/$(TARGET)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
 #
