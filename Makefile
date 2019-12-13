@@ -67,11 +67,45 @@ references/simpleRepeat.txt.gz:
 	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
 
-references/GRCh38.6:
+references/GRCh38.86:
 	echo "Downloading snpEff database..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
 		java -jar /usr/local/share/snpeff-4.3.1t-1/snpEff.jar download -dataDir /references GRCh38.86
+	zcat references/GRCh38.86/regulation_DNase1-NHEK_enriched_sites.bin | sed "s/ /_/g" | gzip > references/GRCh38.86/regulation_DNase1-NHEK_enriched_sites_nospace.bin
+	zcat references/GRCh38.86/regulation_DNase1-HUVEC_enriched_sites.bin | sed "s/ /_/g" | gzip > references/GRCh38.86/regulation_DNase1-HUVEC_enriched_sites_nospace.bin
+
+
+references/GRCh38.86/phastCons: references/GRCh38.86 references/hg38.fa.fai
+	echo "Downloading snpEff conservation database..."
+	mkdir -p references/GRCh38.86/phastCons
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr1.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr2.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr3.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr4.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr5.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr6.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr7.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr8.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr9.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr10.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr11.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr12.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr13.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr14.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr15.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr16.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr17.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr18.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr19.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr20.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr21.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chr22.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrM.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrX.phastCons100way.wigFix.gz
+	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
+	cp references/hg38.fa.fai references/GRCh38.86/phastCons/genome.fai
+
 
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
@@ -140,7 +174,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		jmonlong/sveval@sha256:fe35f70ae2765bddaf0a990d9f04f94b029c7006ebabab653d046da4566f3fbb \
 		R -e "sveval::freqAnnotate('/data/$(PREREQ)', '/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz', out.vcf='/data/$(TARGET)', min.cov=.1)"
 
-%.ann.vcf: %.vcf 
+%.ann.vcf: %.vcf references/GRCh38.86
 	echo "Annotating variants..."
 	$(DOCKER_RUN) \
 		quay.io/biocontainers/snpeff@sha256:5c61b86bf531d3bf20c0fe50e8197a35b977c281ef74369c67e842eb4d092941 \
@@ -148,8 +182,17 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		-dataDir /references \
 		-t -quiet \
 		-noNextProt -noMotif -noStats -classic \
+		-reg DNase1-HUVEC_enriched_sites_nospace -reg DNase1-NHEK_enriched_sites_nospace \
 		-no PROTEIN_PROTEIN_INTERACTION_LOCUS -no PROTEIN_STRUCTURAL_INTERACTION_LOCUS \
 		GRCh38.86 /data/$(PREREQ) > $(@)
+	chown `id -u`:`stat -c "%g" samples/` $(@)
+
+%.sift.vcf: %.vcf references/GRCh38.86/phastCons
+	echo "Annotating variants..."
+	$(DOCKER_RUN) \
+		quay.io/biocontainers/snpsift@sha256:2b2a0fa662bde7bd8643191c02eb35a3abd7bb426928b722bcfc4edd4e66d87d \
+		java -Xmx10000m -jar /usr/local/share/snpsift-4.2-4/SnpSift.jar \
+		phastCons /references/GRCh38.86/phastCons /data/$(PREREQ) > $(@)
 	chown `id -u`:`stat -c "%g" samples/` $(@)
 
 #

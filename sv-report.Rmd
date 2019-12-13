@@ -102,6 +102,7 @@ writeByGeneSection <- function(gene.name, high.df, vcf.sn, vcf.sv, format='pdf')
       reads=info(vcf)$RE,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
+      gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
@@ -117,6 +118,7 @@ writeByGeneSection <- function(gene.name, high.df, vcf.sn, vcf.sv, format='pdf')
       reads=info(vcf)$SUPPORT,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
+      gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
@@ -124,7 +126,7 @@ writeByGeneSection <- function(gene.name, high.df, vcf.sn, vcf.sv, format='pdf')
                        effect=gsub('_', '\\\\_', effect)) %>%
     group_by(method, id) %>% summarize(effect=paste(unique(effect), collapse='; ')) %>%
     merge(vars, .) %>% ungroup %>% select(-id)
-  cat('\n\n### ', linkGenes(gene.name), '\n\n')
+  cat('\n\n#### ', linkGenes(gene.name), '\n\n')
   cat('\n\n- pLI score: ', linkPli(df$pLI[1], gene.name), '\n\n')
   if(format == 'pdf'){
     eff.coln = which(colnames(vars)=='effect')
@@ -154,19 +156,20 @@ writeByVariantSection <- function(ii, high.ii, high.df, vcf.sn, vcf.sv, format=o
     reads=reads,
     freq=info(vcf)$AFMAX,
     simp.rep=info(vcf)$ol.simple.repeat,
+    gt=geno(vcf)$GT[,1],
     method=info(vcf)$METHOD,
     nmeths=info(vcf)$METHODS)
   ## Effect info
   df = high.df %>% filter(id==id.ii) %>% select(gene, effect, pLI) %>% unique
   ## Write Markdown/Latex section
-  cat('\n\n### ', res$type, 'in', paste(linkGenes(unique(df$gene)), collapse=' '), '\n\n')
+  cat('\n\n#### ', res$type, 'in', paste(linkGenes(unique(df$gene)), collapse=' '), '\n\n')
   if(format=='pdf'){
     res %>% kable(booktabs=TRUE, escape=FALSE) %>% cat
   }
   if(format=='html'){
     res %>% kable(format='html') %>% kable_styling() %>% cat
   }
-  cat('\n\n#### Effect(s) \n\n')
+  cat('\n\n##### Effect(s) \n\n')
   df = df %>% mutate(effect=gsub('\\+', ' \\+ ', effect),
                   effect=gsub('_', '\\\\_', effect),
                   pLI=linkPli(pLI, gene, format=format),
@@ -210,6 +213,8 @@ info(vcf.sv)$METHOD = 'SVIM'
 
 ## Read gene list
 genes = read.table(args[3], as.is=TRUE, header=TRUE)
+genes.gr = GRanges(paste0('chr', genes$chromosome_name),
+                   IRanges(genes$start_position, genes$end_position), gene=genes$hgnc_symbol)
 
 ## Read pli score
 pli.df = read.table(args[4], as.is=TRUE, header=TRUE, sep='\t')
@@ -225,13 +230,19 @@ info(vcf.sv)$ol.simple.repeat = overlapsAny(vcf.sv, sr)
 ```
 
 ```{r highimpact}
-## Select variants with "HIGH" impact and parse the EFF field
 eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
   high.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('HIGH', effs)))))
-  eff.df = lapply(high.ii, function(ii){
+  moderate.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('MODERATE', effs)))))
+  cons.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('CONSERVED', effs)))))
+  cds.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('CDS', effs)))))
+  reg.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('REGULATION', effs)))))
+  union.ii = unique(c(high.ii, moderate.ii, cons.ii, cds.ii, reg.ii))
+  union.ii = unique(c(high.ii))
+  eff.df = lapply(union.ii, function(ii){
     effs = lapply(info(vcf)$EFF[[ii]], parseEff)
     effs = do.call(rbind, effs)
     effs$id = ii
+    effs$nmeths = info(vcf)$METHODS[ii]
     effs
   })
   eff.df = do.call(rbind, eff.df)
@@ -253,69 +264,207 @@ It represents the probability that the gene is intolerant to loss-of-function va
 A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
 The variants in each section are ordered to show those affecting genes with the highest pLI first.
 
-# By gene {.tabset}
+# Results {.tabset}
 
-## Genes of interest
+## High impact and called by 2 methods {.tabset}
+
+### Genes of interest
 
 Genes of interest: `r sort(genes$hgnc_symbol)`.
 
-```{r geneselpg, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
+```{r selhigh, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol, nmeths==2) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
-## Write a section for each variant
+### Write a section for each variant
 t = lapply(unique(high.df$gene), function(gene.name){
   writeByGeneSection(gene.name, high.df, vcf.sn, vcf.sv, format=out.format)  
 })
 
 ```
 
-## Other coding genes
+### Other coding genes
 
-```{r proteincodingpg, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING',
+```{r othershigh, results='asis'}
+high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING', nmeths==2,
                             !(gene %in% genes$hgnc_symbol)) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
-## Write a section for each variant
+### Write a section for each variant
 t = lapply(unique(high.df$gene), function(gene.name){
   writeByGeneSection(gene.name, high.df, vcf.sn, vcf.sv, format=out.format)  
 })
 ```
 
-# By variant {.tabset}
+## Moderate impact and called by 2 methods {.tabset}
 
-## High impact variants in genes of interest
+### Genes of interest
 
 Genes of interest: `r sort(genes$hgnc_symbol)`.
 
-```{r genesel, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
-  
-high.ii = high.df %>% select(id, method) %>% unique
-
-if(nrow(high.ii)>0){
-  ## Write a section for each variant
-  t = lapply(1:nrow(high.ii), function(ii){
-    writeByVariantSection(ii, high.ii, high.df, vcf.sn, vcf.sv, format=out.format)
+```{r selmod, results='asis'}
+eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
+  gene.ii = unlist(lapply(genes$hgnc_symbol, function(genen){
+    which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl(genen, effs)))))
+  }))
+  eff.df = lapply(unique(gene.ii), function(ii){
+    effs = lapply(info(vcf)$EFF[[ii]], parseEff)
+    effs = do.call(rbind, effs)
+    effs$id = ii
+    effs$nmeths = info(vcf)$METHODS[ii]
+    effs
   })
+  eff.df = do.call(rbind, eff.df)
+  eff.df$method = info(vcf)$METHOD[1]
+  eff.df
+})
+eff.g.df = do.call(rbind, eff.g.df)
+
+high.df = eff.g.df %>% filter(impact %in% c('MODERATE', 'MODIFIER'),
+                              gene %in% genes$hgnc_symbol, nmeths==2) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
+  
+### Write a section for each variant
+t = lapply(unique(high.df$gene), function(gene.name){
+  writeByGeneSection(gene.name, high.df, vcf.sn, vcf.sv, format=out.format)  
+})
+
+```
+
+### Other coding genes
+
+```{r othersmod, results='asis'}
+high.df = rbind(
+  eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$hgnc_symbol)),
+  eff.df %>% filter(grepl('CONSERVED', effect) | effect %in% c('CDS','REGULATION'),
+                    nmeths==2, !(gene %in% genes$hgnc_symbol))) %>%
+  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
+  
+### Write a section for each variant
+t = lapply(unique(high.df$gene), function(gene.name){
+  writeByGeneSection(gene.name, high.df, vcf.sn, vcf.sv, format=out.format)  
+})
+```
+
+
+## Rare SVs called by 2 methods {.tabset}
+
+### Around genes of interest
+
+```{r raresel, results='asis'}
+vcf.rare = subset(vcf.sn, METHODS==1 & AFMAX<.01)
+d.df = distanceToNearest(vcf.rare, genes.gr) %>% as.data.frame
+info(vcf.rare)$SELGENEDIST = NA
+info(vcf.rare)$SELGENEDIST[d.df$queryHits] = d.df$distance
+info(vcf.rare)$SELGENE = NA
+info(vcf.rare)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
+## vcf.rare = subset(vcf.rare, SELGENEDIST<1e6)
+
+svs.df = tibble(
+  gene=info(vcf.rare)$SELGENE,
+  pos=linkPos(as.character(seqnames(rowRanges(vcf.rare))), start(rowRanges(vcf.rare)), info(vcf.rare)$SVTYPE, info(vcf.rare)$SVLEN, format=out.format),
+  type=info(vcf.rare)$SVTYPE,
+  size=info(vcf.rare)$SVLEN,
+  distance=info(vcf.rare)$SELGENEDIST,
+  freq=info(vcf.rare)$AFMAX,
+  simp.rep=info(vcf.rare)$ol.simple.repeat,
+  gt=geno(vcf.rare)$GT[,1])
+if(info(vcf.rare)$METHOD[1]=='Sniffles'){
+  svs.df$reads=info(vcf.rare)$RE
+} else {
+  svs.df$reads=info(vcf.rare)$SUPPORT
+}
+
+svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
+t = lapply(unique(svs.sel$gene), function(gene.name){
+  vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
+  cat('\n\n#### ', linkGenes(gene.name), '\n\n')
+    cat('\n\n- pLI score: ', linkPli(subset(pli.df, gene==gene.name)$pLI, gene.name), '\n\n')
+  if(out.format == 'pdf'){
+    vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+      cat
+  }
+  if(out.format == 'html'){
+    ## datatable(vars)
+    vars %>% kable(format='html') %>% kable_styling() %>% cat
+  }
+})
+```
+
+### Large
+
+```{r rarelarge, results='asis'}
+vars = svs.df %>% filter(abs(size)>1e3) %>% select(-gene, -distance) %>% arrange(desc(abs(size)))
+if(out.format == 'pdf'){
+  vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+    cat
+}
+if(out.format == 'html'){
+  ## datatable(vars)
+  vars %>% kable(format='html') %>% kable_styling() %>% cat
 }
 ```
 
-## High impact variants affecting other coding genes
 
-```{r proteincoding, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING',
-                            !(gene %in% genes$hgnc_symbol)) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI))
-high.ii = high.df %>% select(id, method) %>% unique
+## Rare SVs called only one method {.tabset}
 
-if(nrow(high.ii)>0){
-  ## Write a section for each variant
-  t = lapply(1:nrow(high.ii), function(ii){
-    writeByVariantSection(ii, high.ii, high.df, vcf.sn, vcf.sv, format=out.format)
-  })
+### Around genes of interest
+
+```{r raresel1, results='asis'}
+svs.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
+  vcf = subset(vcf, METHODS==1 & AFMAX<.01)
+  d.df = distanceToNearest(vcf, genes.gr) %>% as.data.frame
+  info(vcf)$SELGENEDIST = NA
+  info(vcf)$SELGENEDIST[d.df$queryHits] = d.df$distance
+  info(vcf)$SELGENE = NA
+  info(vcf)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
+  ## vcf = subset(vcf, SELGENEDIST<1e6)
+  vars = tibble(
+    gene=info(vcf)$SELGENE,
+    pos=linkPos(as.character(seqnames(rowRanges(vcf))), start(rowRanges(vcf)), info(vcf)$SVTYPE, info(vcf)$SVLEN, format=out.format),
+    type=info(vcf)$SVTYPE,
+    size=info(vcf)$SVLEN,
+    distance=info(vcf)$SELGENEDIST,
+    freq=info(vcf)$AFMAX,
+    simp.rep=info(vcf)$ol.simple.repeat,
+    method=info(vcf)$METHOD,
+    gt=geno(vcf)$GT[,1])
+  if(info(vcf)$METHOD[1]=='Sniffles'){
+    vars$reads=info(vcf)$RE
+  } else {
+    vars$reads=info(vcf)$SUPPORT
+  }
+  return(vars)
+})
+svs.df = do.call(rbind, svs.df)
+
+svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
+t = lapply(unique(svs.sel$gene), function(gene.name){
+  vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
+  cat('\n\n#### ', linkGenes(gene.name), '\n\n')
+    cat('\n\n- pLI score: ', linkPli(subset(pli.df, gene==gene.name)$pLI, gene.name), '\n\n')
+  if(out.format == 'pdf'){
+    vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+      cat
+  }
+  if(out.format == 'html'){
+    ## datatable(vars)
+    vars %>% kable(format='html') %>% kable_styling() %>% cat
+  }
+})
+```
+
+### Large
+
+```{r rarelarge1, results='asis'}
+vars = svs.df %>% filter(abs(size)>1e3) %>% select(-gene, -distance) %>% arrange(desc(abs(size)))
+if(out.format == 'pdf'){
+  vars %>% kable(booktabs=TRUE, escape=FALSE) %>%
+    cat
+}
+if(out.format == 'html'){
+  ## datatable(vars)
+  vars %>% kable(format='html') %>% kable_styling() %>% cat
 }
 ```
 
