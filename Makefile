@@ -67,6 +67,22 @@ references/simpleRepeat.txt.gz:
 	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/simpleRepeat.txt.gz
 
+references/hsvlr.vcf.gz:
+	echo "Downloading public SV catalog from long-read studies..."
+	mkdir -p references
+	wget -N -P references https://storage.cloud.google.com/jmonlong-vg-sv/hsvlrnodupins/hsvlrnodupins.vcf.gz
+	mv references/hsvlrnodupins.vcf.gz references/hsvlr.vcf.gz
+
+references/GRCh38_hg38_variants_2016-08-31.txt:
+	echo "Downloading DGV SV catalog..."
+	mkdir -p references
+	wget -N -P references http://dgv.tcag.ca/dgv/docs/GRCh38_hg38_variants_2016-08-31.txt
+
+references/iscaPathogenic.txt.gz:
+	echo "Downloading ClinGen Pathogenic CNV catalog from UCSC Genome Browser..."
+	mkdir -p references
+	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/iscaPathogenic.txt.gz
+
 references/GRCh38.86:
 	echo "Downloading snpEff database..."
 	$(DOCKER_RUN) \
