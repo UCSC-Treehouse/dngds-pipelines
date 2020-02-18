@@ -52,6 +52,9 @@ references/gene_position_info.txt:
 	mkdir -p references
 	wget -N -P references https://github.com/ucsc-upd/operations/files/3628601/gene_position_info.txt
 
+references/gene_position_info.tsv:
+	echo "/!\  Download it manually, I haven't put it anywhere yet /!\ "
+
 references/gnomad_v2_sv.sites.pass.lifted.vcf.gz:
 	echo "Downloading SV catalog from gnomAD-SV..."
 	mkdir -p references
@@ -82,6 +85,11 @@ references/iscaPathogenic.txt.gz:
 	echo "Downloading ClinGen Pathogenic CNV catalog from UCSC Genome Browser..."
 	mkdir -p references
 	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/iscaPathogenic.txt.gz
+
+references/ENCFF010WHH.bed.gz:
+	echo "Downloading CTCF peaks in kidney from ENCODE..."
+	mkdir -p references
+	wget -N -P references https://www.encodeproject.org/files/ENCFF010WHH/@@download/ENCFF010WHH.bed.gz
 
 references/GRCh38.86:
 	echo "Downloading snpEff database..."
@@ -215,18 +223,10 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 # Reports
 #
 
-%.sv-report.pdf: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz sv-report.Rmd
+%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:78ec614cbdb46f64d76794ed2eda2a4f61fc6216dbb6a9d8843a3d7693ec8c1a \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="pdf_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
-	mv sv-report.pdf $@
-
-%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.txt references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz
-	echo "Producing SV report..."
-	$(DOCKER_RUN) \
-		-v `realpath .`:/app -w /app \
-		jmonlong/sveval-rmarkdown@sha256:78ec614cbdb46f64d76794ed2eda2a4f61fc6216dbb6a9d8843a3d7693ec8c1a \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.txt /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz
 	mv sv-report.html $@

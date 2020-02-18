@@ -6,9 +6,6 @@ header-includes:
 - \usepackage{makecell}
 urlcolor: teal
 output:
-  pdf_document:
-    toc: true
-    toc_depth: 2
   html_document:
     toc: true
     toc_depth: 2
@@ -29,16 +26,17 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 ## 6: long-read SV catalog
 ## 7: DGV SV catalog
 ## 8: ClinGen Pathogenic CNVs
+## 9: CTCF peaks
 args = commandArgs(TRUE)
-## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.txt', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz')
+## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz')
 
 ## Load packages
 library(sveval)
 library(VariantAnnotation)
-library(dplyr)
 library(knitr)
 library(kableExtra)
 library(DT)
+library(dplyr)
 
 out.format='html'
 if(is_latex_output()){
@@ -65,7 +63,13 @@ parseEff <- function(eff){
   res = res %>% mutate(gene=gsub('(.*)\\+.*', '\\1', gene)) %>% rbind(res2)
   return(res)
 }
-## Format links for genes (NCBI) or genomic position (UCSC Genome Browser)
+parseEff.nbpc <- function(eff){
+  target = gsub('.*\\((.*)\\)', '\\1', eff)
+  target = strsplit(target, '\\|')[[1]]
+  res = tibble(gene=target[[6]], target.type=target[[8]])
+  return(nrow(unique(subset(res, target.type=='CODING'))))
+}
+## Format links for genes (NCBI), genomic position (UCSC Genome Browser), or pli (gnomAD)
 formatLink <- function(labels, urls, format='pdf'){
   if(format=='html'){
     return(paste0('[', labels, '](', urls,')'))
@@ -95,11 +99,12 @@ linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
   return(formatLink(labels, urls, format=format))
 }
 
-makeGeneTable <- function(gene.name, high.df, vcf.sn, vcf.sv){
-  df = high.df %>% filter(gene==gene.name)
+## Make a data.frame for a particular gene from an effect data.frame and the two VCF objects
+makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
+  eff.df = eff.df %>% filter(gene==gene.name)
   vars = tibble()
-  if(any(df$method=='Sniffles')){
-    id.ii = df %>% filter(method=='Sniffles') %>% .$id %>% unique
+  if(any(eff.df$method=='Sniffles')){
+    id.ii = eff.df %>% filter(method=='Sniffles') %>% .$id %>% unique
     vcf = vcf.sn[id.ii]
     vars = tibble(
       id=id.ii,
@@ -113,12 +118,13 @@ makeGeneTable <- function(gene.name, high.df, vcf.sn, vcf.sv){
       hsvlr=info(vcf)$HSVLR,
       dgv=info(vcf)$dgv.loss | info(vcf)$dgv.gain,
       clingen=info(vcf)$clingen,
+      ctcf=info(vcf)$ctcf,
       gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
-  if(any(df$method=='SVIM')){
-    id.ii = df %>% filter(method=='SVIM') %>% .$id %>% unique
+  if(any(eff.df$method=='SVIM')){
+    id.ii = eff.df %>% filter(method=='SVIM') %>% .$id %>% unique
     vcf = vcf.sv[id.ii]
     vars = tibble(
       id=id.ii,
@@ -132,17 +138,19 @@ makeGeneTable <- function(gene.name, high.df, vcf.sn, vcf.sv){
       hsvlr=info(vcf)$HSVLR,
       dgv=info(vcf)$dgv.loss | info(vcf)$dgv.gain,
       clingen=info(vcf)$clingen,
+      ctcf=info(vcf)$ctcf,
       gt=geno(vcf)$GT[,1],
       method=info(vcf)$METHOD,
       nmeths=info(vcf)$METHODS) %>% rbind(vars)
   }
-  vars = df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
+  vars = eff.df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
     group_by(method, id) %>% summarize(effect=paste(unique(effect), collapse='; ')) %>%
     merge(vars, .) %>% ungroup %>% select(-id)
-  vars$pli = df$pLI[1]
+  vars$pli = eff.df$pLI[1]
   vars$gene = gene.name
   vars %>% dplyr::select(gene, pli, everything())
 }
+## Format some fields of a data.frame to convert them into links to external resources
 formatGeneTable <- function(df){
   df$pos = linkPos(df$chr, df$pos, df$size, df$size, format='rawhtml')
   df$chr = NULL
@@ -183,9 +191,9 @@ info(vcf.sn)$METHOD = 'Sniffles'
 info(vcf.sv)$METHOD = 'SVIM'
 
 ## Read gene list
-genes = read.table(args[3], as.is=TRUE, header=TRUE)
-genes.gr = GRanges(paste0('chr', genes$chromosome_name),
-                   IRanges(genes$start_position, genes$end_position), gene=genes$hgnc_symbol)
+genes = read.table(args[3], as.is=TRUE, header=TRUE) %>% dplyr::rename(gene=gene_name)
+genes.list = genes %>% select(gene, gene_list) %>% unique
+genes.gr = makeGRangesFromDataFrame(genes, keep.extra.columns=TRUE)
 
 ## Read pli score
 pli.df = read.table(args[4], as.is=TRUE, header=TRUE, sep='\t')
@@ -232,6 +240,12 @@ info(vcf.sn)$clingen[subset(ol.o, rol>.5)$queryHits] = TRUE
 ol.o = rOverlap(gr.sv, clingen)
 info(vcf.sv)$clingen = FALSE
 info(vcf.sv)$clingen[subset(ol.o, rol>.5)$queryHits] = TRUE
+
+## CTCF peaks
+ctcf = read.table(args[9], as.is=TRUE)
+ctcf = with(ctcf, GRanges(V1, IRanges(V2, V3), score=V5))
+info(vcf.sn)$ctcf = overlapsAny(vcf.sn, ctcf)
+info(vcf.sv)$ctcf = overlapsAny(vcf.sv, ctcf)
 ```
 
 ```{r highimpact}
@@ -280,10 +294,10 @@ Also all of:
 
 ### Genes of interest
 
-Genes of interest: `r sort(genes$hgnc_symbol)`.
+Genes of interest: `r sort(genes$gene)`.
 
 ```{r selhigh, results='asis'}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$hgnc_symbol, nmeths==2) %>%
+high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$gene, nmeths==2) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
 ### Write table
@@ -293,8 +307,9 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df = t.df %>% filter(freq<.01, !hsvlr)
-  datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
+  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE)
 }
 ```
 
@@ -302,7 +317,7 @@ if(!is.null(t.df)){
 
 ```{r othershigh, results='asis'}
 high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING', nmeths==2,
-                            !(gene %in% genes$hgnc_symbol)) %>%
+                            !(gene %in% genes$gene)) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
 
 ### Write table
@@ -312,20 +327,26 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df = t.df %>% filter(freq<.01, !hsvlr)
-  datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
+  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE)
 }
 ```
 
 ## Moderate impact and called by 2 methods {.tabset}
 
+Also all of:
+
+- frequency lower than 1% in gnomAD-SV
+- not seen in the SV catalog from long-read studies
+
 ### Genes of interest
 
-Genes of interest: `r sort(genes$hgnc_symbol)`.
+Genes of interest: `r sort(genes$gene)`.
 
 ```{r selmod, results='asis'}
 eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
-  gene.ii = unlist(lapply(genes$hgnc_symbol, function(genen){
+  gene.ii = unlist(lapply(genes$gene, function(genen){
     which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl(genen, effs)))))
   }))
   eff.df = lapply(unique(gene.ii), function(ii){
@@ -342,7 +363,7 @@ eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
 eff.g.df = do.call(rbind, eff.g.df)
 
 high.df = eff.g.df %>% filter(impact %in% c('MODERATE', 'MODIFIER'),
-                              gene %in% genes$hgnc_symbol, nmeths==2) %>%
+                              gene %in% genes$gene, nmeths==2) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
 ### Write table
@@ -352,8 +373,9 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df = t.df %>% filter(freq<.01, !hsvlr)
-  datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
+  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE)
 }
 ```
 
@@ -361,9 +383,9 @@ if(!is.null(t.df)){
 
 ```{r othersmod, results='asis'}
 high.df = rbind(
-  eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$hgnc_symbol)),
+  eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$gene)),
   eff.df %>% filter(grepl('CONSERVED', effect) | effect %in% c('CDS','REGULATION'),
-                    nmeths==2, !(gene %in% genes$hgnc_symbol))) %>%
+                    nmeths==2, !(gene %in% genes$gene))) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
 ### Write table
@@ -373,18 +395,24 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df = t.df %>% filter(freq<.01, !hsvlr)
-  datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
+  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE)
 }
 ```
 
 
 ## Rare SVs called by 2 methods {.tabset}
 
+Also all of:
+
+- frequency lower than 1% in gnomAD-SV
+- not seen in the SV catalog from long-read studies
+
 ### Around genes of interest
 
 ```{r raresel, results='asis'}
-vcf.rare = subset(vcf.sn, METHODS==1 & AFMAX<.01)
+vcf.rare = subset(vcf.sn, METHODS==2 & AFMAX<.01)
 d.df = distanceToNearest(vcf.rare, genes.gr) %>% as.data.frame
 info(vcf.rare)$SELGENEDIST = NA
 info(vcf.rare)$SELGENEDIST[d.df$queryHits] = d.df$distance
@@ -404,7 +432,9 @@ svs.df = tibble(
   hsvlr=info(vcf.rare)$HSVLR,
   dgv=info(vcf.rare)$dgv.loss | info(vcf.rare)$dgv.gain,
   clingen=info(vcf.rare)$clingen,
-  gt=geno(vcf.rare)$GT[,1])
+  ctcf=info(vcf.rare)$ctcf,
+  gt=geno(vcf.rare)$GT[,1],
+  nb.pc.genes = unlist(lapply(info(vcf.rare)$EFF, parseEff.nbpc)))
 if(info(vcf.rare)$METHOD[1]=='Sniffles'){
   svs.df$reads=info(vcf.rare)$RE
 } else {
@@ -421,15 +451,24 @@ t.df = lapply(unique(svs.sel$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df = t.df %>% filter(freq<.01, !hsvlr)
-  datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
+  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE)
 }
 ```
 
 ### Large
 
-```{r rarelarge, results='asis'}
-t.df = svs.df %>% filter(abs(size)>1e3) %>% select(-gene, -distance) %>% arrange(desc(abs(size))) %>% filter(freq<.01, !hsvlr)
-datatable(formatGeneTable(t.df), filter='top', escape=FALSE)
-```
+Interesting profile might include:
 
+- large deletions spanning a CTCF binding region (could lead to TAD reorganization and ectopic gene expression).
+- Overlap with pathogenic CNV in the ClinGen database. *clingen* column shows variants with 50% reciprocal overlap with a pathogenic CNV.
+- Large SV affecting multiple protein-coding genes.
+
+```{r rarelarge, results='asis'}
+svs.df %>% filter(abs(size)>1e3) %>%
+  arrange(desc(abs(size))) %>% filter(freq<.01, !hsvlr) %>%
+  select(-gene) %>% formatGeneTable %>%
+  select(type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, nb.pc.genes) %>% 
+  datatable(filter='top', escape=FALSE)
+```
