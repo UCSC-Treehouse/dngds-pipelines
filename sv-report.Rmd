@@ -94,7 +94,7 @@ linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
   size = ifelse(type %in% c('DEL','DUP','INV'), abs(size), 1)
   urls = paste0('https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A',
                 pos-flanks, '-', pos+size+flanks, '&highlight=hg38.', chr, '%3A',
-                pos, '-', pos+size, '%23AA0000')
+                pos, '-', pos+size, '%23E18F99')
   labels = paste0(chr, ':', pos)
   return(formatLink(labels, urls, format=format))
 }
