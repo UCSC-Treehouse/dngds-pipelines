@@ -227,6 +227,6 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
-		jmonlong/sveval-rmarkdown@sha256:78ec614cbdb46f64d76794ed2eda2a4f61fc6216dbb6a9d8843a3d7693ec8c1a \
+		jmonlong/sveval-rmarkdown@sha256:99e92947e226ae8496e9b061701ff5d89a445b61c919bd26744756d6b97d6a69 \
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz
 	mv sv-report.html $@
