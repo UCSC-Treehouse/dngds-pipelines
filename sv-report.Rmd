@@ -152,6 +152,7 @@ makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
 }
 ## Format some fields of a data.frame to convert them into links to external resources
 formatGeneTable <- function(df){
+  if(nrow(df)==0) return(df)
   df$pos = linkPos(df$chr, df$pos, df$size, df$size, format='rawhtml')
   df$chr = NULL
   if('gene' %in% colnames(df)){
