@@ -9,7 +9,7 @@ output:
   html_document:
     toc: true
     toc_depth: 2
-    toc_float: true
+    toc_float: false
 ---
 
 ```{r include=FALSE}
@@ -153,7 +153,7 @@ makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
 ## Format some fields of a data.frame to convert them into links to external resources
 formatGeneTable <- function(df){
   if(nrow(df)==0) return(df)
-  df$pos = linkPos(df$chr, df$pos, df$size, df$size, format='rawhtml')
+  df$pos = linkPos(df$chr, df$pos, df$type, df$size, format='rawhtml')
   df$chr = NULL
   if('gene' %in% colnames(df)){
     df$pli = linkPli(df$pli, df$gene, format='rawhtml')
@@ -309,8 +309,8 @@ t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE)
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -329,8 +329,8 @@ t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE)
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -375,8 +375,8 @@ t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE)
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -397,8 +397,8 @@ t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE)
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -444,8 +444,9 @@ if(info(vcf.rare)$METHOD[1]=='Sniffles'){
 
 svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
 t.df = lapply(unique(svs.sel$gene), function(gene.name){
+  pli = subset(pli.df, gene==gene.name)$pLI
   vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
-  vars$pli = subset(pli.df, gene==gene.name)$pLI
+  vars$pli = ifelse(is.null(pli), NA, pli[1])
   vars$gene = gene.name
   vars %>% dplyr::select(gene, pli, everything())
 })
@@ -454,7 +455,7 @@ t.df = do.call(rbind, t.df)
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
     select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE)
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -471,5 +472,5 @@ svs.df %>% filter(abs(size)>1e3) %>%
   arrange(desc(abs(size))) %>% filter(freq<.01, !hsvlr) %>%
   select(-gene) %>% formatGeneTable %>%
   select(type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, nb.pc.genes) %>% 
-  datatable(filter='top', escape=FALSE)
+  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
