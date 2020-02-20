@@ -373,9 +373,9 @@ if(!is.null(t.df)){
 
 ## Moderate impact {.tabset}
 
-*MODERATE* or *MODIFIER* impacts as defined by SnpEff.
-
 ### Genes of interest
+
+*MODERATE* or *MODIFIER* impacts as defined by SnpEff.
 
 ```{r selmod}
 eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
@@ -413,6 +413,8 @@ if(!is.null(t.df)){
 ```
 
 ### Other coding genes
+
+*MODERATE* impact or either *CONSERVED* or *CDS* or *REGULATION* effects (as defined by SnpEff).
 
 ```{r othersmod}
 high.df = rbind(
