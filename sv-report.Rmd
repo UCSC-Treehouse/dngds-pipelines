@@ -314,7 +314,7 @@ Clarifications about some column names:
 
 ## Genes of interest
 
-There are `r length(unique(genes$gene_list))` gene lists:
+There are `r length(unique(genes$gene))` genes in `r length(unique(genes$gene_list))` gene lists:
 
 ```{r genes}
 genes %>% group_by(gene_list) %>% summarize(genes=n()) %>% kable
