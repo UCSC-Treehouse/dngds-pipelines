@@ -87,7 +87,7 @@ linkPli <- function(scores, genes, digits=3, format='html'){
   return(formatLink(labels, urls, format=format))
 }
 linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
-  size = ifelse(type %in% c('DEL','DUP','INV'), abs(size), 1)
+  size = ifelse(type %in% c('DEL','DUP','INV'), size, 1)
   urls = paste0('https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A',
                 pos-flanks, '-', pos+size+flanks, '&highlight=hg38.', chr, '%3A',
                 pos, '-', pos+size, '%23E18F99')
@@ -107,7 +107,7 @@ makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
       chr=as.character(seqnames(rowRanges(vcf))),
       pos=start(rowRanges(vcf)),
       type=info(vcf)$SVTYPE,
-      size=info(vcf)$SVLEN,
+      size=abs(info(vcf)$SVLEN),
       reads=info(vcf)$RE,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
@@ -127,7 +127,7 @@ makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
       chr=as.character(seqnames(rowRanges(vcf))),
       pos=start(rowRanges(vcf)),
       type=info(vcf)$SVTYPE,
-      size=info(vcf)$SVLEN,
+      size=abs(info(vcf)$SVLEN),
       reads=info(vcf)$SUPPORT,
       freq=info(vcf)$AFMAX,
       simp.rep=info(vcf)$ol.simple.repeat,
@@ -187,7 +187,7 @@ gr.sv$GT = 'hom'
 gr.sv$ID = 1:length(vcf.sv)
 
 ## Overlap and add a column with overlap
-ol.o = svOverlap(gr.sn, gr.sv)
+ol.o = svOverlap(gr.sn, gr.sv, max.ins.dist=100)
 ol.o$query = subset(ol.o$query, cov.prop>.5)
 ol.o$subject = subset(ol.o$subject, cov.prop>.5)
 info(vcf.sn)$METHODS = 1
@@ -217,10 +217,10 @@ info(vcf.sv)$ol.simple.repeat = overlapsAny(vcf.sv, sr, maxgap=10)
 
 ## SVs from public long-read studies
 lr.gr = readSVvcf(args[6], right.trim=FALSE)
-ol.o = svOverlap(gr.sn, lr.gr)
+ol.o = svOverlap(gr.sn, lr.gr, max.ins.dist=100)
 info(vcf.sn)$HSVLR = FALSE
 info(vcf.sn)$HSVLR[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
-ol.o = svOverlap(gr.sv, lr.gr)
+ol.o = svOverlap(gr.sv, lr.gr, max.ins.dist=100)
 info(vcf.sv)$HSVLR = FALSE
 info(vcf.sv)$HSVLR[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
 
@@ -300,17 +300,17 @@ In the following, we also removed common variants, i.e. either:
 
 Clarifications about some column names:
 
-- *pli* prob of  loss-of-function intolerance described above.
-- *type* SV type
-- *gt* genotype, usually *0/1* for het or *1/1* for hom.
-- *freq* allele frequency of similar SV in gnomAD-SV (>10K genomes sequenced with Illumina whole-genome sequencing).
-- *dgv* does the variant overlap any variant in DGV?
-- *clingen* any similar ClinGen pathogenic variants (as found at the UCSC Genome Browser)? "Similar" defined as reciprocal overlap > 50%.
-- *ctcf* does the variant overlap a CTCF binding site? From ENCODE track for kidney.
-- *simp.rep* is the variant in or close to a simple repeat (see simple repeat track in the UCSC Genome Browser).
-- *effect* predicted effect extracted from SnpEff annotation.
-- *distance* distance to the gene boundaries.
-- *nb.pc.genes* number of protein-coding genes overlapped by the variant.
+- `pli` prob of  loss-of-function intolerance described above.
+- `type` SV type
+- `gt` genotype, usually `0/1` for het or `1/1` for hom.
+- `freq` allele frequency of similar SV in gnomAD-SV (>10K genomes sequenced with Illumina whole-genome sequencing).
+- `dgv` does the variant overlap any variant in DGV?
+- `clingen` any similar ClinGen pathogenic variants (as found at the UCSC Genome Browser)? "Similar" defined as reciprocal overlap > 50%.
+- `ctcf` does the variant overlap a CTCF binding site? From ENCODE track for kidney.
+- `simp.rep` is the variant in or close to a simple repeat (see simple repeat track in the UCSC Genome Browser).
+- `effect` predicted effect extracted from SnpEff annotation.
+- `distance` distance to the gene boundaries.
+- `nb.pc.genes` number of protein-coding genes overlapped by the variant.
 
 ## Genes of interest
 
@@ -453,7 +453,7 @@ svs.df = tibble(
   chr=as.character(seqnames(rowRanges(vcf.rare))),
   pos=start(rowRanges(vcf.rare)),
   type=info(vcf.rare)$SVTYPE,
-  size=info(vcf.rare)$SVLEN,
+  size=abs(info(vcf.rare)$SVLEN),
   distance=info(vcf.rare)$SELGENEDIST,
   freq=info(vcf.rare)$AFMAX,
   simp.rep=info(vcf.rare)$ol.simple.repeat,
@@ -496,8 +496,8 @@ Interesting profiles to look for:
 - Large SV affecting multiple protein-coding genes.
 
 ```{r rarelarge}
-svs.df %>% filter(abs(size)>1e3) %>%
-  arrange(desc(abs(size))) %>% filter(freq<.01, !hsvlr) %>%
+svs.df %>% filter(size>1e3, freq<.01, !hsvlr) %>%
+  arrange(desc(abs(size))) %>% 
   select(-gene) %>% formatGeneTable %>%
   select(type, size, pos, gt, freq, dgv, clingen, ctcf, simp.rep, nb.pc.genes) %>% 
   datatable(filter='top', escape=FALSE, options=list(pageLength=50))
