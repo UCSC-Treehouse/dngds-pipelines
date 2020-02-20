@@ -5,11 +5,7 @@ header-includes:
 - \usepackage{booktabs}
 - \usepackage{makecell}
 urlcolor: teal
-output:
-  html_document:
-    toc: true
-    toc_depth: 2
-    toc_float: false
+output: html_document
 ---
 
 ```{r include=FALSE}
@@ -153,10 +149,20 @@ makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
 ## Format some fields of a data.frame to convert them into links to external resources
 formatGeneTable <- function(df){
   if(nrow(df)==0) return(df)
-  df$pos = linkPos(df$chr, df$pos, df$type, df$size, format='rawhtml')
-  df$chr = NULL
+  if('type' %in% colnames(df)){
+    df$type = factor(df$type)
+  }
+  if('gt' %in% colnames(df)){
+    df$gt = factor(df$gt)
+  }
+  if('pos' %in% colnames(df)){
+    df$pos = linkPos(df$chr, df$pos, df$type, df$size, format='rawhtml')
+    df$chr = NULL
+  }
   if('gene' %in% colnames(df)){
-    df$pli = linkPli(df$pli, df$gene, format='rawhtml')
+    if('pli' %in% colnames(df)){
+      df$pli = linkPli(df$pli, df$gene, format='rawhtml')
+    }
     df$gene = linkGenes(df$gene, format='rawhtml')
   }
   df
@@ -192,7 +198,8 @@ info(vcf.sn)$METHOD = 'Sniffles'
 info(vcf.sv)$METHOD = 'SVIM'
 
 ## Read gene list
-genes = read.table(args[3], as.is=TRUE, header=TRUE) %>% dplyr::rename(gene=gene_name)
+genes = read.table(args[3], as.is=TRUE, header=TRUE) %>% dplyr::rename(gene=gene_name) %>%
+  mutate(gene_list=factor(gene_list))
 genes.list = genes %>% select(gene, gene_list) %>% unique
 genes.gr = makeGRangesFromDataFrame(genes, keep.extra.columns=TRUE)
 
@@ -272,32 +279,48 @@ eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
 eff.df = do.call(rbind, eff.df)
 ```
 
-# Methods
+# {.tabset}
+
+## Methods
 
 The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
+To focus on high-confidence SV calls, we only look at calls made by both Sniffles and SVIM.
 
 The variants' "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
-In this report we select variants with a predicted *HIGH* effect.
 
 The *pLI* score was computed by the [gnomAD project](https://gnomad.broadinstitute.org/).
 It represents the probability that the gene is intolerant to loss-of-function variants.
 A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
 The variants in each section are ordered to show those affecting genes with the highest pLI first.
 
-# Results {.tabset}
+In the following, we also removed common variants, i.e. either:
 
-## High impact and called by 2 methods {.tabset}
+- frequency higher than 1% in gnomAD-SV
+- seen in the SV catalog from long-read studies
 
-Also all of:
+## Genes of interest
 
-- frequency lower than 1% in gnomAD-SV
-- not seen in the SV catalog from long-read studies
+There are `r length(unique(genes$gene_list))` gene lists:
+
+```{r genes}
+genes %>% group_by(gene_list) %>% summarize(genes=n()) %>% kable
+```
+
+---
+
+They contain the following genes:
+
+```{r genes2}
+genes %>% formatGeneTable %>% datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+```
+
+## High impact {.tabset}
+
+*HIGH* impact as defined by SnpEff.
 
 ### Genes of interest
 
-Genes of interest: `r sort(genes$gene)`.
-
-```{r selhigh, results='asis'}
+```{r selhigh}
 high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$gene, nmeths==2) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
   
@@ -316,7 +339,7 @@ if(!is.null(t.df)){
 
 ### Other coding genes
 
-```{r othershigh, results='asis'}
+```{r othershigh}
 high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING', nmeths==2,
                             !(gene %in% genes$gene)) %>%
   merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
@@ -334,18 +357,13 @@ if(!is.null(t.df)){
 }
 ```
 
-## Moderate impact and called by 2 methods {.tabset}
+## Moderate impact {.tabset}
 
-Also all of:
-
-- frequency lower than 1% in gnomAD-SV
-- not seen in the SV catalog from long-read studies
+*MODERATE* or *MODIFIER* impacts as defined by SnpEff.
 
 ### Genes of interest
 
-Genes of interest: `r sort(genes$gene)`.
-
-```{r selmod, results='asis'}
+```{r selmod}
 eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
   gene.ii = unlist(lapply(genes$gene, function(genen){
     which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl(genen, effs)))))
@@ -382,7 +400,7 @@ if(!is.null(t.df)){
 
 ### Other coding genes
 
-```{r othersmod, results='asis'}
+```{r othersmod}
 high.df = rbind(
   eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$gene)),
   eff.df %>% filter(grepl('CONSERVED', effect) | effect %in% c('CDS','REGULATION'),
@@ -403,16 +421,11 @@ if(!is.null(t.df)){
 ```
 
 
-## Rare SVs called by 2 methods {.tabset}
-
-Also all of:
-
-- frequency lower than 1% in gnomAD-SV
-- not seen in the SV catalog from long-read studies
+## Rare SVs {.tabset}
 
 ### Around genes of interest
 
-```{r raresel, results='asis'}
+```{r raresel}
 vcf.rare = subset(vcf.sn, METHODS==2 & AFMAX<.01)
 d.df = distanceToNearest(vcf.rare, genes.gr) %>% as.data.frame
 info(vcf.rare)$SELGENEDIST = NA
@@ -461,13 +474,14 @@ if(!is.null(t.df)){
 
 ### Large
 
-Interesting profile might include:
+Large and rare variants tend to have a higher biological impact.
+Interesting profiles to look for:
 
 - large deletions spanning a CTCF binding region (could lead to TAD reorganization and ectopic gene expression).
 - Overlap with pathogenic CNV in the ClinGen database. *clingen* column shows variants with 50% reciprocal overlap with a pathogenic CNV.
 - Large SV affecting multiple protein-coding genes.
 
-```{r rarelarge, results='asis'}
+```{r rarelarge}
 svs.df %>% filter(abs(size)>1e3) %>%
   arrange(desc(abs(size))) %>% filter(freq<.01, !hsvlr) %>%
   select(-gene) %>% formatGeneTable %>%
