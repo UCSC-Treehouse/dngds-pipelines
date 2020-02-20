@@ -298,6 +298,20 @@ In the following, we also removed common variants, i.e. either:
 - frequency higher than 1% in gnomAD-SV
 - seen in the SV catalog from long-read studies
 
+Clarifications about some column names:
+
+- *pli* prob of  loss-of-function intolerance described above.
+- *type* SV type
+- *gt* genotype, usually *0/1* for het or *1/1* for hom.
+- *freq* allele frequency of similar SV in gnomAD-SV (>10K genomes sequenced with Illumina whole-genome sequencing).
+- *dgv* does the variant overlap any variant in DGV?
+- *clingen* any similar ClinGen pathogenic variants (as found at the UCSC Genome Browser)? "Similar" defined as reciprocal overlap > 50%.
+- *ctcf* does the variant overlap a CTCF binding site? From ENCODE track for kidney.
+- *simp.rep* is the variant in or close to a simple repeat (see simple repeat track in the UCSC Genome Browser).
+- *effect* predicted effect extracted from SnpEff annotation.
+- *distance* distance to the gene boundaries.
+- *nb.pc.genes* number of protein-coding genes overlapped by the variant.
+
 ## Genes of interest
 
 There are `r length(unique(genes$gene_list))` gene lists:
