@@ -469,7 +469,7 @@ if(info(vcf.rare)$METHOD[1]=='Sniffles'){
   svs.df$reads=info(vcf.rare)$SUPPORT
 }
 
-svs.sel = svs.df %>% filter(distance<1e6) %>% arrange(distance)
+svs.sel = svs.df %>% filter(distance<1e5) %>% arrange(distance)
 t.df = lapply(unique(svs.sel$gene), function(gene.name){
   pli = subset(pli.df, gene==gene.name)$pLI
   vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
