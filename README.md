@@ -35,8 +35,6 @@ This will take approximately 30 minutes using 32 cores and generate the followin
 ## Structural variant report
 
 ```bash
-make samples/na12878-chr11/na12878-chr11.sv-report.pdf
-## or 
 make samples/na12878-chr11/na12878-chr11.sv-report.html
 ```
 
