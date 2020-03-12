@@ -96,15 +96,16 @@ references/ENCFF166QIT.bed.gz:
 	mkdir -p references
 	wget -N -P references https://www.encodeproject.org/files/ENCFF166QIT/@@download/ENCFF166QIT.bed.gz
 
-references/ENCFF166QIT.lifted.bed.gz:
+references/ENCFF166QIT.lifted.bed.gz: references/ENCFF166QIT.bed.gz
 	echo "Lift over regulatory regions to GCRh38..."
 	mkdir -p references
-	gunzip references/ENCFF166QIT.bed.gz
+	gunzip -f references/ENCFF166QIT.bed.gz
 	$(DOCKER_RUN) \
 		jmonlong/liftover@sha256:c1e513c7bede70edf4bb758edb061a457f4e76f2c0149993eca36baa486d235b \
+		liftOver \
 		/references/ENCFF166QIT.bed /home/hg19ToHg38.over.chain.gz \
 		/references/ENCFF166QIT.lifted.bed /references/ENCFF166QIT.notlifted.bed
-	gzip references/ENCFF166QIT.bed references/ENCFF166QIT.lifted.bed references/ENCFF166QIT.notlifted.bed
+	gzip -f references/ENCFF166QIT.bed references/ENCFF166QIT.lifted.bed references/ENCFF166QIT.notlifted.bed
 
 references/GRCh38.86:
 	echo "Downloading snpEff database..."
