@@ -91,6 +91,21 @@ references/ENCFF010WHH.bed.gz:
 	mkdir -p references
 	wget -N -P references https://www.encodeproject.org/files/ENCFF010WHH/@@download/ENCFF010WHH.bed.gz
 
+references/ENCFF166QIT.bed.gz:
+	echo "Downloading regulatory region in kidney from ENCODE (hg19)..."
+	mkdir -p references
+	wget -N -P references https://www.encodeproject.org/files/ENCFF166QIT/@@download/ENCFF166QIT.bed.gz
+
+references/ENCFF166QIT.lifted.bed.gz:
+	echo "Lift over regulatory regions to GCRh38..."
+	mkdir -p references
+	gunzip references/ENCFF166QIT.bed.gz
+	$(DOCKER_RUN) \
+		jmonlong/liftover@sha256:c1e513c7bede70edf4bb758edb061a457f4e76f2c0149993eca36baa486d235b \
+		/references/ENCFF166QIT.bed /home/hg19ToHg38.over.chain.gz \
+		/references/ENCFF166QIT.lifted.bed /references/ENCFF166QIT.notlifted.bed
+	gzip references/ENCFF166QIT.bed references/ENCFF166QIT.lifted.bed references/ENCFF166QIT.notlifted.bed
+
 references/GRCh38.86:
 	echo "Downloading snpEff database..."
 	$(DOCKER_RUN) \
@@ -223,10 +238,11 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 # Reports
 #
 
-%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz
+%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz references/ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz references/ENCFF166QIT.lifted.bed.gz
 	echo "Producing SV report..."
 	$(DOCKER_RUN) \
 		-v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:99e92947e226ae8496e9b061701ff5d89a445b61c919bd26744756d6b97d6a69 \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz
+		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz /references/gnomad_v2_sv.sites.pass.lifted.vcf.gz /references/ENCFF166QIT.lifted.bed.gz
 	mv sv-report.html $@
+	mv sv-te-like-insertions.tsv $@.sv-te-like-insertions.tsv
