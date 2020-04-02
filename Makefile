@@ -257,12 +257,11 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 references/exclude.cnvnator_100bp.GRCh38.20170403.bed:
 	echo "Download regions to exclude for WGS SV calling..."
 	mkdir -p references
-	wget -N -P references https://github.com/hall-lab/speedseq/blob/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
+	wget -N -P references https://raw.githubusercontent.com/hall-lab/speedseq/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
 
-%.smoove.vcf: %.bam references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
+%.smoove.vcf.gz: %.bam references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
 	echo "Calling variants with Smoove..."
 	$(DOCKER_RUN) \
 		brentp/smoove@sha256:1bbf81b1c3c109e62c550783c2241acc1b10e2b161c79ee658e6abd011000c67 \
-		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
-		smoove call -x --name wgs-sv-call --exclude /references/exclude.cnvnator_100bp.GRCh38.20170403.bed --fasta /references/hg38.fa -p $(CPU) --genotype /data/$(PREREQ)
-	mv wgs-sv-call-smoove.genotyped.vcf.gz $(TARGET)
+		smoove call -x --name wgs-sv-call --exclude /references/exclude.cnvnator_100bp.GRCh38.20170403.bed --fasta /references/hg38.fa -p $(CPU) --genotype /data/$(PREREQ) -o /data/smoove-results
+	cp $(@D)/smoove-results/wgs-sv-call-smoove.genotyped.vcf.gz $(TARGET)
