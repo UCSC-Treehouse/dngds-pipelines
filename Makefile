@@ -247,3 +247,22 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz /references/gnomad_v2_sv.sites.pass.lifted.vcf.gz /references/ENCFF166QIT.lifted.bed.gz
 	mv sv-report.html $@
 	mv sv-te-like-insertions.tsv $@.sv-te-like-insertions.tsv
+
+
+#
+# For short-read WGS data
+#
+
+# Call Structural Variants
+references/exclude.cnvnator_100bp.GRCh38.20170403.bed:
+	echo "Download regions to exclude for WGS SV calling..."
+	mkdir -p references
+	wget -N -P references https://github.com/hall-lab/speedseq/blob/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
+
+%.smoove.vcf: %.bam references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
+	echo "Calling variants with Smoove..."
+	$(DOCKER_RUN) \
+		brentp/smoove@sha256:1bbf81b1c3c109e62c550783c2241acc1b10e2b161c79ee658e6abd011000c67 \
+		sniffles -m /data/$(PREREQ) -v /data/$(TARGET) --genotype
+		smoove call -x --name wgs-sv-call --exclude /references/exclude.cnvnator_100bp.GRCh38.20170403.bed --fasta /references/hg38.fa -p $(CPU) --genotype /data/$(PREREQ)
+	mv wgs-sv-call-smoove.genotyped.vcf.gz $(TARGET)
