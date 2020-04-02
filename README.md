@@ -49,3 +49,12 @@ make samples/<id>/<id>.sniffles.vcf
 make samples/na12878-chr11/na12878-chr11.svim.vcf
 make samples/na12878-chr11/na12878-chr11.clairvoyant.vcf
 ```
+
+### Structural variants from whole-genome sequencing with short reads
+
+We have [smoove](https://github.com/brentp/smoove) implemented to start from a BAM file.
+For example if the WGS BAM file is called `FILE.bam`, run the SV calling with:
+
+```
+make FILE.smoove.vcf.gz
+```
