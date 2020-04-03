@@ -146,6 +146,16 @@ references/GRCh38.86/phastCons: references/GRCh38.86 references/hg38.fa.fai
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
 	cp references/hg38.fa.fai references/GRCh38.86/phastCons/genome.fai
 
+references/1000G_phase1.snps.high_confidence.hg38.vcf.gz:
+	echo "Download known site of high-confidence snps for GATK BQSR..."
+	mkdir -p references
+	wget -N -P references ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+	wget -N -P references ftp://gsapubftp-anonymous@ftp.broadinstitute.org/bundle/hg38/1000G_phase1.snps.high_confidence.hg38.vcf.gz.tbi
+
+references/exclude.cnvnator_100bp.GRCh38.20170403.bed:
+	echo "Download regions to exclude for WGS SV calling..."
+	mkdir -p references
+	wget -N -P references https://raw.githubusercontent.com/hall-lab/speedseq/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
 
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
@@ -241,10 +251,18 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 
 %.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz references/ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz references/ENCFF166QIT.lifted.bed.gz
 	echo "Producing SV report..."
-	$(DOCKER_RUN) \
-		-v `realpath .`:/app -w /app \
+	$(DOCKER_RUN) -v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:99e92947e226ae8496e9b061701ff5d89a445b61c919bd26744756d6b97d6a69 \
-		Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$$(echo $^ | cut -f1 -d' ' | xargs basename) /data/$$(echo $^ | cut -f2 -d' ' | xargs basename) /references/gene_position_info.tsv /references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz /references/simpleRepeat.txt.gz /references/hsvlr.vcf.gz /references/GRCh38_hg38_variants_2016-08-31.txt /references/iscaPathogenic.txt.gz /references/ENCFF010WHH.bed.gz /references/gnomad_v2_sv.sites.pass.lifted.vcf.gz /references/ENCFF166QIT.lifted.bed.gz
+			Rscript -e 'rmarkdown::render("sv-report.Rmd", output_format="html_document")' /data/$(PREREQ) /data/$(word 2,$(^F)) \
+				/references/gene_position_info.tsv \
+				/references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz \
+				/references/simpleRepeat.txt.gz \
+				/references/hsvlr.vcf.gz \
+				/references/GRCh38_hg38_variants_2016-08-31.txt \
+				/references/iscaPathogenic.txt.gz \
+				/references/ENCFF010WHH.bed.gz \
+				/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz \
+				/references/ENCFF166QIT.lifted.bed.gz
 	mv sv-report.html $@
 	mv sv-te-like-insertions.tsv $@.sv-te-like-insertions.tsv
 
@@ -253,15 +271,70 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 # For short-read WGS data
 #
 
-# Call Structural Variants
-references/exclude.cnvnator_100bp.GRCh38.20170403.bed:
-	echo "Download regions to exclude for WGS SV calling..."
-	mkdir -p references
-	wget -N -P references https://raw.githubusercontent.com/hall-lab/speedseq/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
+# Map reads using bwa mem
+references/hg38.fa.sa: references/hg38.fa
+	$(DOCKER_RUN) \
+		buddej/bwa@sha256:cbc761ce09a93bd74b5e4ca3cae44c22d4d80e22340042ac4e85e6d097de5f4c \
+			bwa index /references/$(PREREQ)
 
-%.smoove.vcf.gz: %.bam references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
+%.bam: %_R1.fq.gz %_R2.fq.gz references/hg38.fa references/hg38.fa.sa
+	$(DOCKER_RUN) \
+		buddej/bwa@sha256:cbc761ce09a93bd74b5e4ca3cae44c22d4d80e22340042ac4e85e6d097de5f4c \
+			sh -c "bwa mem -t $(CPU) /references/hg38.fa /data/$(PREREQ) /data/$(word 2,$(^F)) | samtools view -bhS -o /data/$(TARGET) -"
+
+# Sort and index bam file
+%.sorted.bam: %.bam
+	$(DOCKER_RUN) \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			samtools sort -@ $(CPU) /data/$(PREREQ) /data/$(patsubst %.bam,%,$(TARGET))
+
+%.bam.bai: %.bam
+	$(DOCKER_RUN) \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			samtools index /data/$(PREREQ) /data/$(TARGET)
+
+# QC reads with GATK
+# Guessing the sample name as the substring until the first '.' in the filename, e.g. "SAMPLE.illumina.wgs.sorted.bam"
+%.sorted.RG.bam: %.sorted.bam %.sorted.bam.bai
+	$(DOCKER_RUN) \
+		broadinstitute/gatk:4.1.3.0 \
+			gatk AddOrReplaceReadGroups -I=/data/$(PREREQ) -O=/data/$(TARGET) \
+				-RGLB=lib1 -RGPL=illumina -RGPU=unit1 -RGSM=$(firstword $(subst ., ,$(TARGET)))
+
+%.sorted.RG.MD.bam: %.sorted.RG.bam
+	mkdir -p $(@D)/temp_$(TARGET)_md
+	$(DOCKER_RUN) \
+	broadinstitute/gatk:4.1.3.0 \
+		gatk --java-options "-Dsamjdk.compression_level=5 -Xms4000m" \
+			MarkDuplicates \
+			--INPUT /data/$(PREREQ) \
+			--OUTPUT /data/$(TARGET) \
+			--METRICS_FILE /data/$(basename $(TARGET)).duplicate_metrics \
+			--VALIDATION_STRINGENCY SILENT \
+			--OPTICAL_DUPLICATE_PIXEL_DISTANCE 2500 \
+			--TMP_DIR /data/temp_$(TARGET)_md \
+			--CREATE_MD5_FILE true
+	rm -r $(@D)/temp_$(TARGET)_md
+
+# Recalibrate base qualities
+%.sorted.RG.MD.BQSR.table: %.sorted.RG.MD.bam references/hg38.fa references/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+	$(DOCKER_RUN) \
+	broadinstitute/gatk:4.1.3.0 \
+		gatk BaseRecalibrator -I=/data/$(PREREQ) -O=/data/$(TARGET) \
+		-R=/references/hg38.fa \
+		--known-sites=/references/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+
+%.sorted.RG.MD.BQSR.bam: %.sorted.RG.MD.bam %.sorted.RG.MD.BQSR.table references/hg38.fa
+	$(DOCKER_RUN) \
+	broadinstitute/gatk:4.1.3.0 \
+		gatk ApplyBQSR  -I=/data/$(PREREQ) -O=/data/$(TARGET) \
+			-R=/references/hg38.fa \
+			-bqsr-recal-file=/data/$(word 2,$(^F))
+
+# Call Structural Variants
+%.smoove.vcf.gz: %.bam %.bam.bai references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
 	echo "Calling variants with Smoove..."
 	$(DOCKER_RUN) \
 		brentp/smoove@sha256:1bbf81b1c3c109e62c550783c2241acc1b10e2b161c79ee658e6abd011000c67 \
-		smoove call -x --name wgs-sv-call --exclude /references/exclude.cnvnator_100bp.GRCh38.20170403.bed --fasta /references/hg38.fa -p $(CPU) --genotype /data/$(PREREQ) -o /data/smoove-results
+		smoove call -x --name wgs-sv-call --fasta /$(word 2,$^) --exclude /$(word 3,$^) -p $(CPU) --genotype /data/$(PREREQ) -o /data/smoove-results
 	cp $(@D)/smoove-results/wgs-sv-call-smoove.genotyped.vcf.gz $(TARGET)
