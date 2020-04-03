@@ -18,10 +18,12 @@ CPU ?= 32
 
 # Run as the calling user and samples directory group and
 # map the sample into /data and references into /references
+# make the /data into the working directory to make be able to use '$(TARGET)' instead of '/data/$(TARGET)' all the time
 DOCKER_RUN = docker run -it --rm --cpus="$(CPU)" \
 		--user `id -u`:`stat -c "%g" samples/` \
 		-v `realpath references`:/references \
-		-v `realpath $(@D)`:/data
+		-v `realpath $(@D)`:/data \
+		-w /data
 
 #
 # General recipes
@@ -157,6 +159,21 @@ references/exclude.cnvnator_100bp.GRCh38.20170403.bed:
 	mkdir -p references
 	wget -N -P references https://raw.githubusercontent.com/hall-lab/speedseq/master/annotations/exclude.cnvnator_100bp.GRCh38.20170403.bed
 
+##
+## General tools
+##
+
+# sort and index a BAM file
+%.sorted.bam: %.bam
+	$(DOCKER_RUN) \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			sort $(PREREQ) -o $(TARGET) -@ $(CPU)
+
+%.bam.bai: %.bam
+	$(DOCKER_RUN) \
+		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
+			index $(PREREQ) $(TARGET)
+
 #
 # Download NA12878 chr11 from https://github.com/nanopore-wgs-consortium
 # and convert to fq as a test sample
@@ -190,16 +207,6 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 	$(DOCKER_RUN) \
 		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
 		view -S -b $(PREREQ) -o $(TARGET) -@ $(CPU)
-
-%.sorted.bam: %.bam
-	$(DOCKER_RUN) \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		sort $(PREREQ) -o $(TARGET) -@ $(CPU)
-
-%.sorted.bam.bai: %.sorted.bam
-	$(DOCKER_RUN) \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-		index $(PREREQ)
 
 #
 # Call variants against hg38
@@ -274,67 +281,65 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 # Map reads using bwa mem
 references/hg38.fa.sa: references/hg38.fa
 	$(DOCKER_RUN) \
-		buddej/bwa@sha256:cbc761ce09a93bd74b5e4ca3cae44c22d4d80e22340042ac4e85e6d097de5f4c \
+		agrf/bwa-samtools@sha256:4ca331d40823bab776365d6c337fba31986f1c10b64574036768a8e4580954ee \
 			bwa index /references/$(PREREQ)
 
-%.bam: %_R1.fq.gz %_R2.fq.gz references/hg38.fa references/hg38.fa.sa
+%.sam: %_R1.fq.gz %_R2.fq.gz references/hg38.fa references/hg38.fa.sa
 	$(DOCKER_RUN) \
-		buddej/bwa@sha256:cbc761ce09a93bd74b5e4ca3cae44c22d4d80e22340042ac4e85e6d097de5f4c \
-			sh -c "bwa mem -t $(CPU) /references/hg38.fa /data/$(PREREQ) /data/$(word 2,$(^F)) | samtools view -bhS -o /data/$(TARGET) -"
-
-# Sort and index bam file
-%.sorted.bam: %.bam
-	$(DOCKER_RUN) \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-			samtools sort -@ $(CPU) /data/$(PREREQ) /data/$(patsubst %.bam,%,$(TARGET))
-
-%.bam.bai: %.bam
-	$(DOCKER_RUN) \
-		quay.io/ucsc_cgl/samtools@sha256:2abed6c570ef4614fbd43673ddcdc1bbcd7318cb067ffa3d42eb50fc6ec1b95f \
-			samtools index /data/$(PREREQ) /data/$(TARGET)
+		agrf/bwa-samtools@sha256:4ca331d40823bab776365d6c337fba31986f1c10b64574036768a8e4580954ee \
+			bwa mem -t $(CPU) -o $(TARGET) /references/hg38.fa $(PREREQ) $(word 2,$(^F))
 
 # QC reads with GATK
 # Guessing the sample name as the substring until the first '.' in the filename, e.g. "SAMPLE.illumina.wgs.sorted.bam"
 %.sorted.RG.bam: %.sorted.bam %.sorted.bam.bai
 	$(DOCKER_RUN) \
 		broadinstitute/gatk:4.1.3.0 \
-			gatk AddOrReplaceReadGroups -I=/data/$(PREREQ) -O=/data/$(TARGET) \
+			gatk AddOrReplaceReadGroups -I=$(PREREQ) -O=$(TARGET) \
 				-RGLB=lib1 -RGPL=illumina -RGPU=unit1 -RGSM=$(firstword $(subst ., ,$(TARGET)))
 
 %.sorted.RG.MD.bam: %.sorted.RG.bam
 	mkdir -p $(@D)/temp_$(TARGET)_md
 	$(DOCKER_RUN) \
-	broadinstitute/gatk:4.1.3.0 \
-		gatk --java-options "-Dsamjdk.compression_level=5 -Xms4000m" \
-			MarkDuplicates \
-			--INPUT /data/$(PREREQ) \
-			--OUTPUT /data/$(TARGET) \
-			--METRICS_FILE /data/$(basename $(TARGET)).duplicate_metrics \
-			--VALIDATION_STRINGENCY SILENT \
-			--OPTICAL_DUPLICATE_PIXEL_DISTANCE 2500 \
-			--TMP_DIR /data/temp_$(TARGET)_md \
-			--CREATE_MD5_FILE true
-	rm -r $(@D)/temp_$(TARGET)_md
+		broadinstitute/gatk:4.1.3.0 \
+			gatk --java-options "-Dsamjdk.compression_level=5 -Xms4000m" \
+				MarkDuplicates \
+				--INPUT $(PREREQ) \
+				--OUTPUT $(TARGET) \
+				--METRICS_FILE $(basename $(TARGET)).duplicate_metrics \
+				--VALIDATION_STRINGENCY SILENT \
+				--OPTICAL_DUPLICATE_PIXEL_DISTANCE 2500 \
+				--TMP_DIR temp_$(TARGET)_md \
+				--CREATE_MD5_FILE true
+	rm -rf $(@D)/temp_$(TARGET)_md
 
 # Recalibrate base qualities
 %.sorted.RG.MD.BQSR.table: %.sorted.RG.MD.bam references/hg38.fa references/1000G_phase1.snps.high_confidence.hg38.vcf.gz
 	$(DOCKER_RUN) \
-	broadinstitute/gatk:4.1.3.0 \
-		gatk BaseRecalibrator -I=/data/$(PREREQ) -O=/data/$(TARGET) \
-		-R=/references/hg38.fa \
-		--known-sites=/references/1000G_phase1.snps.high_confidence.hg38.vcf.gz
+		broadinstitute/gatk:4.1.3.0 \
+			gatk BaseRecalibrator -I=$(PREREQ) -O=$(TARGET) \
+			-R=/references/hg38.fa \
+			--known-sites=/references/1000G_phase1.snps.high_confidence.hg38.vcf.gz
 
 %.sorted.RG.MD.BQSR.bam: %.sorted.RG.MD.bam %.sorted.RG.MD.BQSR.table references/hg38.fa
 	$(DOCKER_RUN) \
-	broadinstitute/gatk:4.1.3.0 \
-		gatk ApplyBQSR  -I=/data/$(PREREQ) -O=/data/$(TARGET) \
-			-R=/references/hg38.fa \
-			-bqsr-recal-file=/data/$(word 2,$(^F))
+		broadinstitute/gatk:4.1.3.0 \
+			gatk ApplyBQSR -I=$(PREREQ) -O=$(TARGET) \
+				-R=/references/hg38.fa \
+				-bqsr-recal-file=$(word 2,$(^F))
+
+# clean up once the %.sorted.RG.MD.BQSR.bam file is double-checked
+# removes intermediate bams (everything except the raw sorted bam and the final bam)
+%.sorted.RG.MD.BQSR.bam.clean_temp: 
+	rm -f $(patsubst %.sorted.RG.MD.BQSR.bam.clean_temp,%.sorted.RG.bam,$@)* \
+		$(patsubst %.sorted.RG.MD.BQSR.bam.clean_temp,%.sorted.RG.MD.bam,$@)* \
+		$(patsubst %.sorted.RG.MD.BQSR.bam.clean_temp,%.sorted.RG.MD.BQSR.table,$@) \
+		$(patsubst %.sorted.RG.MD.BQSR.bam.clean_temp,%.bam,$@)* \
+		$(patsubst %.sorted.RG.MD.BQSR.bam.clean_temp,%.sam,$@)
 
 # Call Structural Variants
-%.smoove.vcf.gz: %.bam %.bam.bai references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
+%.smoove.vcf.gz: %.bam references/hg38.fa references/exclude.cnvnator_100bp.GRCh38.20170403.bed
 	echo "Calling variants with Smoove..."
 	$(DOCKER_RUN) \
 		brentp/smoove@sha256:1bbf81b1c3c109e62c550783c2241acc1b10e2b161c79ee658e6abd011000c67 \
-		smoove call -x --name wgs-sv-call --fasta /$(word 2,$^) --exclude /$(word 3,$^) -p $(CPU) --genotype /data/$(PREREQ) -o /data/smoove-results
-	cp $(@D)/smoove-results/wgs-sv-call-smoove.genotyped.vcf.gz $(TARGET)
+		smoove call -x --name wgs-sv-call --fasta /$(word 2,$^) --exclude /$(word 3,$^) -p $(CPU) --genotype $(PREREQ) -o smoove-results
+	cp $(@D)/smoove-results/wgs-sv-call-smoove.genotyped.vcf.gz $@

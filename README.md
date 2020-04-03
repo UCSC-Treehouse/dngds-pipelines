@@ -67,7 +67,13 @@ New files will be created in the same folder (`PATH/TO` in this example).
 To just align the reads and run GATK post-alignment best practices:
 
 ```
-make PATH/TO/FILE.sorted.RG.MD.BQSR.bam.bai
+make PATH/TO/FILE.sorted.RG.MD.BQSR.bam
+```
+
+To clean up (once the final BAM has been double-check), remove intermediate BAMs and files with:
+
+```
+make PATH/TO/FILE.sorted.RG.MD.BQSR.bam.clean_temp
 ```
 
 To call structural variants with [smoove](https://github.com/brentp/smoove):
