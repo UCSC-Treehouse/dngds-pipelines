@@ -281,6 +281,7 @@ cres = with(cres, GRanges(V1, IRanges(V2, V3), score=V5))
 info(vcf.sn)$cres = overlapsAny(vcf.sn, cres)
 info(vcf.sv)$cres = overlapsAny(vcf.sv, cres)
 
+## table with every selected variants to be saved at the end 
 out.tsv = tibble()
 ```
 
@@ -405,6 +406,12 @@ if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
     select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+
+  out.tsv = rbind(out.tsv,
+                  t.df %>% filter(freq<.01, !hsvlr) %>%
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
+                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                         simp.rep, effect))
 }
 ```
 
@@ -426,7 +433,7 @@ if(!is.null(t.df)){
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 
   out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
+                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
@@ -450,6 +457,12 @@ if(!is.null(t.df)){
   t.df %>% filter(comhet) %>% formatGeneTable %>%
     select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+
+  out.tsv = rbind(out.tsv,
+                  t.df %>% filter(comhet) %>%
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
+                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                         simp.rep, effect))
 }
 ```
 
@@ -521,6 +534,12 @@ if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
     select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, ctcf, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+
+  out.tsv = rbind(out.tsv,
+                  t.df %>% filter(freq<.01, !hsvlr) %>%
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
+                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                         simp.rep, effect))
 }
 ```
 
@@ -562,7 +581,7 @@ if(!is.null(t.df)){
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 
   out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
+                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
@@ -590,6 +609,12 @@ if(!is.null(t.df)){
   t.df %>% filter(comhet) %>% formatGeneTable %>%
     select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, ctcf, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+
+  out.tsv = rbind(out.tsv,
+                  t.df %>% filter(comhet) %>%
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
+                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                         simp.rep, effect))
 }
 ```
 
@@ -662,7 +687,7 @@ if(!is.null(t.df)){
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 
   out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
+                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
                   select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
@@ -702,5 +727,8 @@ svs.df %>% filter(size>1e3, freq<.01, !hsvlr) %>%
 
 
 ```{r writetsv}
-write.table(out.tsv, file='svs-in-gene-list.tsv', sep='\t', row.names=FALSE, quote=FALSE)
+out.tsv = unique(out.tsv)
+outgz = gzfile('svs-in-gene-list.tsv.gz', 'w')
+write.table(out.tsv, file=outgz, sep='\t', row.names=FALSE, quote=FALSE)
+close(outgz)
 ```
