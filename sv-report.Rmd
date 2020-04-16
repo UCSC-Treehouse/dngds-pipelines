@@ -384,7 +384,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -409,8 +409,8 @@ if(!is.null(t.df)){
 
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -435,7 +435,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -460,8 +460,8 @@ if(!is.null(t.df)){
 
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -508,7 +508,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -537,8 +537,8 @@ if(!is.null(t.df)){
 
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -583,7 +583,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -612,8 +612,8 @@ if(!is.null(t.df)){
 
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not-in-list') %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -648,6 +648,7 @@ svs.df = tibble(
   ctcf=info(vcf.rare)$ctcf,
   cres=info(vcf.rare)$cres,
   gt=geno(vcf.rare)$GT[,1],
+  method='Sniffles',
   nb.pc.genes = unlist(lapply(info(vcf.rare)$EFF, parseEff.nbpc)))
 if(info(vcf.rare)$METHOD[1]=='Sniffles'){
   svs.df$reads=info(vcf.rare)$RE
@@ -673,7 +674,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -689,7 +690,7 @@ if(!is.null(t.df)){
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
-                  select(chr, start, end, type, size, gene_list, gene, pli, gt, freq, dgv, clingen,
+                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
 }
 ```
@@ -727,8 +728,10 @@ svs.df %>% filter(size>1e3, freq<.01, !hsvlr) %>%
 
 
 ```{r writetsv}
-out.tsv = unique(out.tsv)
-outgz = gzfile('svs-in-gene-list.tsv.gz', 'w')
-write.table(out.tsv, file=outgz, sep='\t', row.names=FALSE, quote=FALSE)
-close(outgz)
+## remove duplicates, inc. when differring only with effect (second being NA)
+out.tsv = out.tsv %>% unique %>% arrange(is.na(effect))
+isdup = out.tsv %>% select(-effect) %>% duplicated
+out.tsv = out.tsv[which(!isdup),]
+## write TSV
+write.table(out.tsv, file='svs-in-gene-list.tsv', sep='\t', row.names=FALSE, quote=FALSE)
 ```
