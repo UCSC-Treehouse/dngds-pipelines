@@ -1,6 +1,10 @@
 # UPD Pipelines
 Tooling to run primary, secondary and tertiary pipelines for the UCSC Undiagnosed Pediatric Disease Center
 
+We want the pipeline to cover:
+
+![](DNA_Nanopore_Genetic_Disease_Study_Pipeline_diagram.png)
+
 ## Requirements
 * linux
 * make
