@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 args = commandArgs(TRUE)
 
 ## ## to test locally
-## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz', 'gnomad_v2_sv.sites.pass.lifted.vcf.gz', 'ENCFF166QIT.lifted.bed.gz', 'phastConsElements100way.txt.gz')
+args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz', 'gnomad_v2_sv.sites.pass.lifted.vcf.gz', 'ENCFF166QIT.lifted.bed.gz', 'phastConsElements100way.txt.gz')
 
 ## Load packages
 library(sveval)
@@ -415,15 +415,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -440,15 +440,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -466,15 +466,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(comhet) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(comhet) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -513,15 +513,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -543,15 +543,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -588,15 +588,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -618,15 +618,15 @@ t.df = lapply(unique(high.df$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(comhet) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(comhet) %>% formatGeneTable %>%
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -680,15 +680,15 @@ t.df = lapply(unique(svs.sel$gene), function(gene.name){
 t.df = do.call(rbind, t.df)
 
 if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -696,15 +696,15 @@ if(!is.null(t.df)){
 
 ```{r rareselcomhet}
 if(!is.null(t.df)){
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
   out.tsv = rbind(out.tsv,
                   t.df %>% filter(comhet) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
                          simp.rep, effect))
+
+  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
+    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
+    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
 
@@ -713,12 +713,13 @@ if(!is.null(t.df)){
 ```{r meisel}
 if(!is.null(t.df)){
   t.df %>% filter(freq<.01, !hsvlr, type=='INS', abs(300-size)<100 | abs(6000-size)<500) %>%
+    merge(genes.list) %>% write.table(file='sv-te-like-insertions.tsv', sep='\t', row.names=FALSE,
+                                      quote=FALSE)
+
+  t.df %>% filter(freq<.01, !hsvlr, type=='INS', abs(300-size)<100 | abs(6000-size)<500) %>%
     merge(genes.list) %>% formatGeneTable %>%
     select(gene_list, gene, pli, distance, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
       datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-  t.df %>% filter(freq<.01, !hsvlr, type=='INS', abs(300-size)<100 | abs(6000-size)<500) %>%
-    merge(genes.list) %>% write.table(file='sv-te-like-insertions.tsv', sep='\t', row.names=FALSE,
-                                      quote=FALSE)
 }
 ```
 
