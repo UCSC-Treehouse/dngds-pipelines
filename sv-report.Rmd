@@ -397,7 +397,7 @@ if(!is.null(t.df)){
                   t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
                   mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
                   select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
+                         cons, simp.rep, effect))
 }
 ```
 
@@ -422,7 +422,7 @@ if(!is.null(t.df)){
                          simp.rep, effect))
 
   t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
@@ -447,7 +447,7 @@ if(!is.null(t.df)){
                          simp.rep, effect))
 
   t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
@@ -473,7 +473,7 @@ if(!is.null(t.df)){
                          simp.rep, effect))
 
   t.df %>% filter(comhet) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
+    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
     datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 }
 ```
