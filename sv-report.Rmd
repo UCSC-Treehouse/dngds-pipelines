@@ -29,7 +29,7 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 args = commandArgs(TRUE)
 
 ## ## to test locally
-args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz', 'gnomad_v2_sv.sites.pass.lifted.vcf.gz', 'ENCFF166QIT.lifted.bed.gz', 'phastConsElements100way.txt.gz')
+## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz', 'gnomad_v2_sv.sites.pass.lifted.vcf.gz', 'ENCFF166QIT.lifted.bed.gz', 'phastConsElements100way.txt.gz')
 
 ## Load packages
 library(sveval)
