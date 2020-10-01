@@ -14,35 +14,19 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 
 ```{r setup}
 ## Read input arguments
-## 1: VCF file from Sniffles
-## 2: VCF file from SVIM
-## 3: gene list file
-## 4: gene and LoF intolerance score file
-## 5: simple repeat annotation
-## 6: long-read SV catalog
-## 7: DGV SV catalog
-## 8: ClinGen Pathogenic CNVs
-## 9: CTCF peaks
-## 10: common gnomAD SV but with no homozygous alternate
-## 11: regulatory regions for kidney
-## 12: conserved regions from UCSC Browser (e.g. 100 vertebrates)
+## 1: config file in YAML
+## 2: filename for the output TSV
 args = commandArgs(TRUE)
-
-## ## to test locally
-## args = c('na12878-chr11.sniffles.ann.freqGnomADcov10.vcf','na12878-chr11.svim.ann.freqGnomADcov10.vcf','gene_position_info.tsv', 'gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz', 'simpleRepeat.txt.gz', 'hsvlr.vcf.gz', 'GRCh38_hg38_variants_2016-08-31.txt', 'iscaPathogenic.txt.gz', 'ENCFF010WHH.bed.gz', 'gnomad_v2_sv.sites.pass.lifted.vcf.gz', 'ENCFF166QIT.lifted.bed.gz', 'phastConsElements100way.txt.gz')
 
 ## Load packages
 library(sveval)
 library(VariantAnnotation)
+library(GenomicRanges)
 library(knitr)
 library(kableExtra)
 library(DT)
 library(dplyr)
-
-out.format='html'
-if(is_latex_output()){
-  out.format='pdf'
-}
+library(ggplot2)
 
 ## Reciproal overlap
 rOverlap <- function(qgr, sgr){
@@ -52,24 +36,12 @@ rOverlap <- function(qgr, sgr){
            rol=ifelse(qw>sw, qsw/qw, qsw/sw))
 }
 
-## Parse the SnpEff field EFF
-parseEff <- function(eff){
-  effect = gsub('(.*)\\(.*\\)', '\\1', eff)
-  target = gsub('.*\\((.*)\\)', '\\1', eff)
-  target = strsplit(target, '\\|')[[1]]
-  res = tibble(effect=effect, impact=target[[1]], gene=target[[6]],
-               target.type=target[[8]])
-  res = res %>% mutate(effect=ifelse(grepl('FUSION', effect), paste0(effect, '_', gene), effect))
-  res2 = res %>% filter(grepl('+', gene)) %>% mutate(gene=gsub('.*\\+(.*)', '\\1', gene))
-  res = res %>% mutate(gene=gsub('(.*)\\+.*', '\\1', gene)) %>% rbind(res2)
-  return(res)
+## Winsorize function
+winsor <- function(x, u){
+  if(any(x>u)) x[x>u] = u
+  x
 }
-parseEff.nbpc <- function(eff){
-  target = gsub('.*\\((.*)\\)', '\\1', eff)
-  target = strsplit(target, '\\|')[[1]]
-  res = tibble(gene=target[[6]], target.type=target[[8]])
-  return(nrow(unique(subset(res, target.type=='CODING'))))
-}
+
 ## Format links for genes (NCBI), genomic position (UCSC Genome Browser), or pli (gnomAD)
 formatLink <- function(labels, urls, format='pdf'){
   if(format=='html'){
@@ -100,65 +72,8 @@ linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
   return(formatLink(labels, urls, format=format))
 }
 
-## Make a data.frame for a particular gene from an effect data.frame and the two VCF objects
-makeGeneTable <- function(gene.name, eff.df, vcf.sn, vcf.sv){
-  eff.df = eff.df %>% filter(gene==gene.name)
-  vars = tibble()
-  if(any(eff.df$method=='Sniffles')){
-    id.ii = eff.df %>% filter(method=='Sniffles') %>% .$id %>% unique
-    vcf = vcf.sn[id.ii]
-    vars = tibble(
-      id=id.ii,
-      chr=as.character(seqnames(rowRanges(vcf))),
-      pos=start(rowRanges(vcf)),
-      type=info(vcf)$SVTYPE,
-      size=abs(info(vcf)$SVLEN),
-      reads=info(vcf)$RE,
-      freq=info(vcf)$AFMAX,
-      simp.rep=info(vcf)$ol.simple.repeat,
-      hsvlr=info(vcf)$HSVLR,
-      comhet=info(vcf)$ComHET,
-      dgv=info(vcf)$dgv.loss | info(vcf)$dgv.gain,
-      clingen=info(vcf)$clingen,
-      ctcf=info(vcf)$ctcf,
-      cres=info(vcf)$cres,
-      cons=info(vcf)$cons,
-      gt=geno(vcf)$GT[,1],
-      method=info(vcf)$METHOD,
-      nmeths=info(vcf)$METHODS) %>% rbind(vars)
-  }
-  if(any(eff.df$method=='SVIM')){
-    id.ii = eff.df %>% filter(method=='SVIM') %>% .$id %>% unique
-    vcf = vcf.sv[id.ii]
-    vars = tibble(
-      id=id.ii,
-      chr=as.character(seqnames(rowRanges(vcf))),
-      pos=start(rowRanges(vcf)),
-      type=info(vcf)$SVTYPE,
-      size=abs(info(vcf)$SVLEN),
-      reads=info(vcf)$SUPPORT,
-      freq=info(vcf)$AFMAX,
-      simp.rep=info(vcf)$ol.simple.repeat,
-      hsvlr=info(vcf)$HSVLR,
-      comhet=info(vcf)$ComHET,
-      dgv=info(vcf)$dgv.loss | info(vcf)$dgv.gain,
-      clingen=info(vcf)$clingen,
-      ctcf=info(vcf)$ctcf,
-      cres=info(vcf)$cres,
-      cons=info(vcf)$cons,
-      gt=geno(vcf)$GT[,1],
-      method=info(vcf)$METHOD,
-      nmeths=info(vcf)$METHODS) %>% rbind(vars)
-  }
-  vars = eff.df %>% mutate(effect=gsub('\\+', ' \\+ ', effect)) %>%
-    group_by(method, id) %>% summarize(effect=paste(unique(effect), collapse='; ')) %>%
-    merge(vars, .) %>% ungroup %>% select(-id)
-  vars$pli = eff.df$pLI[1]
-  vars$gene = gene.name
-  vars %>% dplyr::select(gene, pli, everything())
-}
 ## Format some fields of a data.frame to convert them into links to external resources
-formatGeneTable <- function(df){
+formatTable <- function(df){
   if(nrow(df)==0) return(df)
   if('type' %in% colnames(df)){
     df$type = factor(df$type)
@@ -171,152 +86,196 @@ formatGeneTable <- function(df){
     df$chr = NULL
   }
   if('gene' %in% colnames(df)){
-    if('pli' %in% colnames(df)){
-      df$pli = linkPli(df$pli, df$gene, format='rawhtml')
+    if('pLI' %in% colnames(df)){
+      df$pLI = linkPli(df$pLI, df$gene, format='rawhtml')
     }
     df$gene = linkGenes(df$gene, format='rawhtml')
   }
   df
 }
 
-## Read both VCFs
-vcf.sn = readSVvcf(args[1], vcf.object=TRUE)
-vcf.sv = readSVvcf(args[2], vcf.object=TRUE)
+## Read config file
+cfg.r = scan(args[1], '', sep='\n', quiet=TRUE)
+cfg.r = strsplit(cfg.r, ': ')
+cfg = gsub('"', '', unlist(lapply(cfg.r, '[', 2)))
+names(cfg) = unlist(lapply(cfg.r, '[', 1))
 
-## Make GRanges object for the overlap
-gr.sn = rowRanges(vcf.sn)
-end(gr.sn) = info(vcf.sn)$END
-gr.sn$size = info(vcf.sn)$SIZE
-gr.sn$type = info(vcf.sn)$SVTYPE
-gr.sn$GT = 'hom'
-gr.sn$ID = 1:length(vcf.sn)
-gr.sv = rowRanges(vcf.sv)
-end(gr.sv) = info(vcf.sv)$END
-gr.sv$size = info(vcf.sv)$SIZE
-gr.sv$type = info(vcf.sv)$SVTYPE
-gr.sv$GT = 'hom'
-gr.sv$ID = 1:length(vcf.sv)
+## for debug:
+cfg = c(sniffles_vcf='na12878.sniffles.vcf', svim_vcf='na12878.svim.vcf',
+        idxcov='indexcov_na12878-indexcov.bed.gz', gene_pos='gene_position_info.tsv',
+        pli_gene='gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
+        simprep='simpleRepeat.txt.gz',
+        hsvlr='hsvlr.vcf.gz',
+        dgv='GRCh38_hg38_variants_2016-08-31.txt',
+        clingen='iscaPathogenic.txt.gz',
+        ctcf='ENCFF010WHH.bed.gz',
+        gnomadsv='gnomad_v2_sv.sites.pass.lifted.vcf.gz',
+        cre='ENCFF166QIT.lifted.bed.gz',
+        cons='phastConsElements100way.txt.gz',
+        gencode='gencode.v35.annotation.gtf.gz',
+        cytoband='cytoBandIdeo.txt.gz')
 
-## Overlap and add a column with overlap
-ol.o = svOverlap(gr.sn, gr.sv, max.ins.dist=100)
-ol.o$query = subset(ol.o$query, cov.prop>.5)
-ol.o$subject = subset(ol.o$subject, cov.prop>.5)
-info(vcf.sn)$METHODS = 1
-info(vcf.sn)$METHODS[ol.o$query$ID] = 2
-info(vcf.sv)$METHODS = 1
-info(vcf.sv)$METHODS[ol.o$subject$ID] = 2
-info(vcf.sn)$METHOD = 'Sniffles'
-info(vcf.sv)$METHOD = 'SVIM'
+message('Read VCFs...')
+svs.gr.l = list()
+if('sniffles_vcf' %in% names(cfg)){
+  svs.gr.l$sniffles = readSVvcf(cfg['sniffles_vcf'])
+  svs.gr.l$sniffles$method = 'Sniffles'
+}
+if('svim_vcf' %in% names(cfg)){
+  svs.gr.l$svim = readSVvcf(cfg['svim_vcf'])
+  svs.gr.l$svim$method = 'SVIM'
+}
+if('cnv_ill' %in% names(cfg)){
+  svs.gr.l$freec = readSVvcf(cfg['cnv_ill'])
+  svs.gr.l$freec$method = 'Control-FREEC'
+}
+if('smoove_ill' %in% names(cfg)){
+  svs.gr.l$smoove = readSVvcf(cfg['smoove_ill'])
+  svs.gr.l$smoove$method = 'Smoove'
+}
 
-## Read gene list
-genes = read.table(args[3], as.is=TRUE, header=TRUE) %>% dplyr::rename(gene=gene_name) %>%
+message('Combine variants...')
+svs.gr = Reduce(c, svs.gr.l)
+svs.gr = subset(svs.gr, ac>0)
+
+message('Annotate overlap between methods...')
+ol.gr = svOverlap(svs.gr, svs.gr, min.ol=.5, max.ins.dist=100)
+ol.df = ol.gr %>% as.data.frame %>%
+  mutate(method=svs.gr$method[subjectHits]) %>%
+  group_by(queryHits) %>%
+  summarize(nb.meths=length(unique(method)),
+            meths=paste(sort(unique(method)), collapse=' '))
+svs.gr$nb.meths = 1
+svs.gr$nb.meths[ol.df$queryHits] = ol.df$nb.meths
+svs.gr$meths = svs.gr$method
+svs.gr$meths[ol.df$queryHits] = ol.df$meths
+
+message('Annotate frequency using gnomAD...')
+gnomad = readSVvcf(cfg['gnomadsv'], other.field='AF')
+gnomad$ac = 1
+ol.df = svOverlap(svs.gr, gnomad, min.ol=.1, max.ins.dist=100) %>% as.data.frame %>%
+  mutate(freq=gnomad$AF[subjectHits]) %>%
+  group_by(queryHits) %>%
+  summarize(freq=max(freq))
+svs.gr$freq = 0
+svs.gr$freq[ol.df$queryHits] = ol.df$freq
+
+message('Gene annotation...')
+types.ranked = c('CDS', 'UTR', 'promoter', 'gene')
+types.labels = c('coding', 'UTR', 'promoter', 'intronic')
+genc = rtracklayer::import(cfg['gencode'])
+genc = subset(genc, type %in% types.ranked)
+prom = promoters(subset(genc, type=='gene'))
+prom$type = 'promoter'
+genc = c(genc, prom)
+
+ol.genc = findOverlaps(svs.gr, genc) %>% as.data.frame %>%
+  mutate(gene=genc$gene_name[subjectHits],
+         gene_type=genc$gene_type[subjectHits],
+         type=genc$type[subjectHits],
+         type=factor(type, levels=types.ranked, labels=types.labels)) %>%
+  arrange(type) %>% 
+  group_by(queryHits, gene, gene_type) %>%
+  summarize(impact=head(type, 1))
+
+ol.genc.sum = ol.genc %>% group_by(queryHits) %>%
+  summarize(genes=ifelse(n()>10,
+                         paste(n(), 'genes'),
+                         paste0(gene, '(', impact, '>', gene_type, ')', collapse=' ')),
+            nb.pc.genes=sum(gene_type=='protein_coding'))
+svs.gr$genes = NA
+svs.gr$genes[ol.genc.sum$queryHits] = ol.genc.sum$genes
+svs.gr$nb.pc.genes = 0
+svs.gr$nb.pc.genes[ol.genc.sum$queryHits] = ol.genc.sum$nb.pc.genes
+
+## Nearby protein-coding genes
+pc.genes = subset(genc, type=='gene' & gene_type=='protein_coding')
+d.df = distanceToNearest(svs.gr, pc.genes) %>% as.data.frame
+svs.gr$gene.dist = NA
+svs.gr$gene.dist[d.df$queryHits] = d.df$distance
+svs.gr$gene.near = NA
+svs.gr$gene.near[d.df$queryHits] = pc.genes$gene_name[d.df$subjectHits]
+
+message('Import genes of interest...')
+genes = read.table(cfg['gene_pos'], as.is=TRUE, header=TRUE) %>%
+  dplyr::rename(gene=gene_name) %>%
   mutate(gene_list=factor(gene_list))
 genes.list = genes %>% select(gene, gene_list) %>% unique
 genes.gr = makeGRangesFromDataFrame(genes, keep.extra.columns=TRUE)
 
-## Read pli score
-pli.df = read.table(args[4], as.is=TRUE, header=TRUE, sep='\t')
-pli.df = pli.df %>% select(gene, pLI)
+d.df = distanceToNearest(svs.gr, genes.gr) %>% as.data.frame
+svs.gr$sel.gene.dist = NA
+svs.gr$sel.gene.dist[d.df$queryHits] = d.df$distance
+svs.gr$sel.gene.near = NA
+svs.gr$sel.gene.near[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
 
-## Simple repeats
-sr = read.table(args[5])
+message('Import pli scores...')
+pli.df = read.table(cfg['pli_gene'], as.is=TRUE, header=TRUE, sep='\t')
+pli.df = pli.df %>% select(gene, pLI) %>% unique
+
+message('Overlap with simple repeats...')
+sr = read.table(cfg['simprep'])
 sr = sr[,c(2,3,4,6,7,17)]
 colnames(sr) = c('chrom', 'start', 'end', 'period', 'copyNum', 'sequence')
 sr = makeGRangesFromDataFrame(sr, keep.extra.columns=TRUE)
-info(vcf.sn)$ol.simple.repeat = overlapsAny(vcf.sn, sr, maxgap=10)
-info(vcf.sv)$ol.simple.repeat = overlapsAny(vcf.sv, sr, maxgap=10)
+svs.gr$simp.rep = overlapsAny(svs.gr, sr, maxgap=10)
 
-## SVs from public long-read studies
-lr.gr = readSVvcf(args[6], right.trim=FALSE)
-ol.o = svOverlap(gr.sn, lr.gr, max.ins.dist=100)
-info(vcf.sn)$HSVLR = FALSE
-info(vcf.sn)$HSVLR[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
-ol.o = svOverlap(gr.sv, lr.gr, max.ins.dist=100)
-info(vcf.sv)$HSVLR = FALSE
-info(vcf.sv)$HSVLR[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
+message('Overlap with SVs from public long-read studies...')
+lr.gr = readSVvcf(cfg['hsvlr'])
+lr.gr$ac = 1
+ol.gr = svOverlap(svs.gr, lr.gr, min.ol=.5, max.ins.dist=100)
+svs.gr$hsvlr = FALSE
+svs.gr$hsvlr[ol.gr$queryHits] = TRUE
 
-## Common SVs with no homozygous individuals in the gnomAD database
-gnomad = readSVvcf(args[10], right.trim=FALSE, vcf.object=TRUE)
-af = sapply(info(gnomad)$AF, '[', 1)
-gnomad = gnomad[which(info(gnomad)$FREQ_HOMALT==0 & af>.01)]
-chet.gr = rowRanges(gnomad)
-chet.gr$size = info(gnomad)$SIZE
-chet.gr$type = info(gnomad)$SVTYPE
-ol.o = svOverlap(gr.sn, chet.gr, max.ins.dist=100)
-info(vcf.sn)$ComHET = FALSE
-info(vcf.sn)$ComHET[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
-ol.o = svOverlap(gr.sv, chet.gr, max.ins.dist=100)
-info(vcf.sv)$ComHET = FALSE
-info(vcf.sv)$ComHET[subset(ol.o$query, cov.prop>.5)$ID] = TRUE
-
-## DGV catalog
-dgv = read.table(args[7], as.is=TRUE, header=TRUE, sep='\t')
+message('Overlap with DGV catalog...')
+dgv = read.table(cfg['dgv'], as.is=TRUE, header=TRUE, sep='\t')
 dgv = dgv[,c('chr','start','end', 'variantsubtype')]
 dgv$chr = paste0('chr', dgv$chr)
 dgv = makeGRangesFromDataFrame(dgv, keep.extra.columns=TRUE)
 dgv.loss = subset(dgv, variantsubtype %in% c('loss', 'deletion', 'gain+loss'))
-info(vcf.sn)$dgv.loss = overlapsAny(vcf.sn, dgv.loss, maxgap=10)
-info(vcf.sv)$dgv.loss = overlapsAny(vcf.sv, dgv.loss, maxgap=10)
+dgv.loss = overlapsAny(svs.gr, dgv.loss, maxgap=10)
 dgv.gain = subset(dgv, variantsubtype %in% c('duplication', 'gain', 'insertion',
                                              'mobile element insertion',
                                              'novel sequence insertion',
                                              'tandem duplication', 'gain+loss'))
-info(vcf.sn)$dgv.gain = overlapsAny(vcf.sn, dgv.gain, maxgap=10)
-info(vcf.sv)$dgv.gain = overlapsAny(vcf.sv, dgv.gain, maxgap=10)
+dgv.gain = overlapsAny(svs.gr, dgv.gain, maxgap=10)
+svs.gr$dgv = 'none'
+svs.gr$dgv = ifelse(dgv.loss, 'loss', svs.gr$dgv)
+svs.gr$dgv = ifelse(dgv.gain, 'gain', svs.gr$dgv)
+svs.gr$dgv = ifelse(dgv.gain & dgv.loss, 'loss+gain', svs.gr$dgv)
 
-## ClinGenn pathogenic CNVs
-clingen = read.table(args[8], as.is=TRUE, sep='\t')
+message('Overlap with ClinGenn pathogenic CNVs...')
+clingen = read.table(cfg['clingen'], as.is=TRUE, sep='\t')
 clingen = GRanges(clingen$V2, IRanges(clingen$V3, clingen$V4))
-ol.o = rOverlap(gr.sn, clingen)
-info(vcf.sn)$clingen = FALSE
-info(vcf.sn)$clingen[subset(ol.o, rol>.5)$queryHits] = TRUE
-ol.o = rOverlap(gr.sv, clingen)
-info(vcf.sv)$clingen = FALSE
-info(vcf.sv)$clingen[subset(ol.o, rol>.5)$queryHits] = TRUE
+ol.o = rOverlap(svs.gr, clingen)
+svs.gr$clingen = FALSE
+svs.gr$clingen[subset(ol.o, rol>.5)$queryHits] = TRUE
 
-## CTCF peaks
-ctcf = read.table(args[9], as.is=TRUE)
+message('Overlap with CTCF peaks...')
+ctcf = read.table(cfg['ctcf'], as.is=TRUE)
 ctcf = with(ctcf, GRanges(V1, IRanges(V2, V3), score=V5))
-info(vcf.sn)$ctcf = overlapsAny(vcf.sn, ctcf)
-info(vcf.sv)$ctcf = overlapsAny(vcf.sv, ctcf)
+svs.gr$ctcf = overlapsAny(svs.gr, ctcf)
 
-## Kidney regulatory regions
-cres = read.table(args[11], as.is=TRUE)
+message('Overlap with regulatory regions...')
+cres = read.table(cfg['cre'], as.is=TRUE)
 cres = with(cres, GRanges(V1, IRanges(V2, V3), score=V5))
-info(vcf.sn)$cres = overlapsAny(vcf.sn, cres)
-info(vcf.sv)$cres = overlapsAny(vcf.sv, cres)
+svs.gr$cres = overlapsAny(svs.gr, cres)
 
-## conserved regions
-cons.gr = read.table(args[12], as.is=TRUE)
+message('Overlap with conserved regions...')
+cons.gr = read.table(cfg['cons'], as.is=TRUE)
 cons.gr = with(cons.gr, GRanges(V2, IRanges(V3, V4)))
-info(vcf.sn)$cons = overlapsAny(vcf.sn, cons.gr)
-info(vcf.sv)$cons = overlapsAny(vcf.sv, cons.gr)
+svs.gr$cons = overlapsAny(svs.gr, cons.gr)
 
-## table with every selected variants to be saved at the end 
-out.tsv = tibble()
-```
+## clean up some memory
+rm(cons.gr, cres, ctcf, clingen, dgv, lr.gr, sr, gnomad)
+gc()
 
-```{r highimpact}
-eff.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
-  high.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('HIGH', effs)))))
-  moderate.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('MODERATE', effs)))))
-  cons.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('CONSERVED', effs)))))
-  cds.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('CDS', effs)))))
-  reg.ii = which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl('REGULATION', effs)))))
-  union.ii = unique(c(high.ii, moderate.ii, cons.ii, cds.ii, reg.ii))
-  union.ii = unique(c(high.ii))
-  eff.df = lapply(union.ii, function(ii){
-    effs = lapply(info(vcf)$EFF[[ii]], parseEff)
-    effs = do.call(rbind, effs)
-    effs$id = ii
-    effs$nmeths = info(vcf)$METHODS[ii]
-    effs
-  })
-  eff.df = do.call(rbind, eff.df)
-  eff.df$method = info(vcf)$METHOD[1]
-  eff.df
-})
-eff.df = do.call(rbind, eff.df)
+## Gene-level info
+svs.gene = svs.gr[ol.genc$queryHits]
+svs.gene$genes = NULL
+svs.gene$gene = ol.genc$gene
+svs.gene$gene_type = ol.genc$gene_type
+svs.gene$impact = ol.genc$impact
 ```
 
 # {.tabset}
@@ -344,15 +303,14 @@ Clarifications about some column names:
 - `type` SV type
 - `gt` genotype, usually `0/1` for het or `1/1` for hom.
 - `freq` allele frequency of similar SV in gnomAD-SV (>10K genomes sequenced with Illumina whole-genome sequencing).
-- `dgv` does the variant overlap any variant in DGV?
+- `dgv` does the variant overlap any variant in DGV in any way?
 - `clingen` any similar ClinGen pathogenic variants (as found at the UCSC Genome Browser)? "Similar" defined as reciprocal overlap > 50%.
 - `ctcf` does the variant overlap a CTCF binding site? From ENCODE track for kidney.
 - `cres` does the variant overlap a regulatory region? From ENCODE track for kidney.
 - `simp.rep` is the variant in or close to a simple repeat (see simple repeat track in the UCSC Genome Browser).
 - `hsvlr` any similar variant in SV catalogs from public long-read sequencing studies?
-- `comhet` any similar variant in gnomAD-SV catalogs that are common but no homozygous individual?
 - `cons` does the variant overlap a conserved element (as defined by 100 vertebrate phastCons track)
-- `effect` predicted effect extracted from SnpEff annotation.
+- `impact` potential impact based on gene annotation: 'coding', 'UTR', 'promoter', 'intronic'.
 - `distance` distance to the gene boundaries.
 - `nb.pc.genes` number of protein-coding genes overlapped by the variant.
 
@@ -369,361 +327,74 @@ genes %>% group_by(gene_list) %>% summarize(genes=n()) %>% kable
 They contain the following genes:
 
 ```{r genes2}
-genes %>% formatGeneTable %>% datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+genes %>% formatTable %>% datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
-## High impact {.tabset}
+## Coding/UTR/promoter variants in protein-coding genes
 
-*HIGH* impact as defined by SnpEff.
-
-### Genes of interest
-
-```{r selhigh}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$gene, nmeths==2) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         cons, simp.rep, effect))
-}
+```{r table_high_gene}
+svs.gene %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(nb.meths>1, gene_type=='protein_coding',
+         freq<.01, !hsvlr, impact %in% c('coding', 'UTR', 'promoter')) %>%
+  merge(pli.df, all.x=TRUE) %>%
+  merge(genes.list, all.x=TRUE) %>% 
+  select(gene, impact, pLI, gene_list,
+         pos, type, size, ac, freq,
+         simp.rep, dgv, cons, cres,
+         method, nb.meths, meths, chr) %>%
+  arrange(is.na(gene_list), impact, desc(pLI), freq, desc(size)) %>%
+  formatTable() %>%
+  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
-### Other coding genes
+## Intronic variants in protein-coding genes
 
-```{r othershigh}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING', nmeths==2,
-                            !(gene %in% genes$gene)) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
+```{r table_intronic}
+svs.gene %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(nb.meths>1, gene_type=='protein_coding',
+         freq<.01, !hsvlr, impact == 'intronic') %>%
+  merge(pli.df, all.x=TRUE) %>%
+  merge(genes.list, all.x=TRUE) %>% 
+  select(gene, impact, pLI, gene_list,
+         pos, type, size, ac, freq,
+         simp.rep, dgv, cons, cres,
+         method, nb.meths, meths, chr) %>%
+  arrange(is.na(gene_list), impact, desc(pLI), freq, desc(size)) %>%
+  formatTable() %>%
+  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
-### Genes of interest - Common SVs but no homozygous controls
+## Rare variants near genes of interest
 
-```{r selhighcomhet}
-high.df = eff.df %>% filter(impact=='HIGH', gene %in% genes$gene, nmeths==2) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
+```{r table_rare_near_sel}
+svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(nb.meths>1, sel.gene.dist>0, sel.gene.dist<1e5, freq<.01) %>%
+  select(sel.gene.dist, sel.gene.near, 
+         pos, type, size, ac, freq, genes,
+         simp.rep, dgv, cons, cres, ctcf,
+         method, nb.meths, meths, chr) %>%
+  arrange(sel.gene.dist, freq) %>%
+  formatTable() %>%
+  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
-### Other coding genes - Common SVs but no homozygous controls
+## Non-coding variants in conserved or regulatory regions
 
-```{r othershighcomhet}
-high.df = eff.df %>% filter(impact=='HIGH', target.type=='CODING', nmeths==2,
-                            !(gene %in% genes$gene)) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(comhet) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(comhet) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cons, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
+```{r table_noncoding}
+svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(nb.meths>1, freq<.01, !hsvlr, cres | cons | ctcf,
+         !grepl('protein_coding', genes)) %>%
+  select(pos, type, size, ac, freq, genes,
+         cons, cres, ctcf,
+         gene.dist, gene.near,
+         simp.rep, dgv, 
+         method, nb.meths, meths, chr) %>%
+  arrange(freq, gene.dist, !cons, !cres, desc(size)) %>%
+  formatTable() %>%
+  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
-## Moderate impact {.tabset}
-
-### Genes of interest
-
-*MODERATE* or *MODIFIER* impacts as defined by SnpEff.
-
-```{r selmod}
-eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
-  gene.ii = unlist(lapply(genes$gene, function(genen){
-    which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl(genen, effs)))))
-  }))
-  eff.df = lapply(unique(gene.ii), function(ii){
-    effs = lapply(info(vcf)$EFF[[ii]], parseEff)
-    effs = do.call(rbind, effs)
-    effs$id = ii
-    effs$nmeths = info(vcf)$METHODS[ii]
-    effs
-  })
-  eff.df = do.call(rbind, eff.df)
-  eff.df$method = info(vcf)$METHOD[1]
-  eff.df
-})
-eff.g.df = do.call(rbind, eff.g.df)
-
-high.df = eff.g.df %>% filter(impact %in% c('MODERATE', 'MODIFIER'),
-                              gene %in% genes$gene, nmeths==2) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Other coding genes
-
-*MODERATE* impact or either *CONSERVED* or *CDS* or *REGULATION* effects (as defined by SnpEff).
-
-```{r othersmod}
-high.df = rbind(
-  eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$gene)),
-  eff.df %>% filter(grepl('CONSERVED', effect) | effect %in% c('CDS','REGULATION'),
-                    nmeths==2, !(gene %in% genes$gene))) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(freq<.01, !hsvlr) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Genes of interest - Common SVs but no homozygous controls
-
-*MODERATE* or *MODIFIER* impacts as defined by SnpEff.
-
-```{r selmodcomhet}
-eff.g.df = lapply(list(vcf.sn, vcf.sv), function(vcf){
-  gene.ii = unlist(lapply(genes$gene, function(genen){
-    which(unlist(lapply(info(vcf)$EFF, function(effs) any(grepl(genen, effs)))))
-  }))
-  eff.df = lapply(unique(gene.ii), function(ii){
-    effs = lapply(info(vcf)$EFF[[ii]], parseEff)
-    effs = do.call(rbind, effs)
-    effs$id = ii
-    effs$nmeths = info(vcf)$METHODS[ii]
-    effs
-  })
-  eff.df = do.call(rbind, eff.df)
-  eff.df$method = info(vcf)$METHOD[1]
-  eff.df
-})
-eff.g.df = do.call(rbind, eff.g.df)
-
-high.df = eff.g.df %>% filter(impact %in% c('MODERATE', 'MODIFIER'),
-                              gene %in% genes$gene, nmeths==2) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size)) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Other coding genes - Common SVs but no homozygous controls
-
-*MODERATE* impact or either *CONSERVED* or *CDS* or *REGULATION* effects (as defined by SnpEff).
-
-```{r othersmodcomhet}
-high.df = rbind(
-  eff.df %>% filter(impact=='MODERATE', nmeths==2, !(gene %in% genes$gene)),
-  eff.df %>% filter(grepl('CONSERVED', effect) | effect %in% c('CDS','REGULATION'),
-                    nmeths==2, !(gene %in% genes$gene))) %>%
-  merge(pli.df, all.x=TRUE) %>% arrange(desc(pLI)) %>% unique
-  
-### Write table
-t.df = lapply(unique(high.df$gene), function(gene.name){
-  makeGeneTable(gene.name, high.df, vcf.sn, vcf.sv)
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(comhet) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), gene_list='not_in_list') %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(comhet) %>% formatGeneTable %>%
-    select(gene, pli, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, effect) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-
-## Rare SVs {.tabset}
-
-### Around genes of interest
-
-```{r raresel}
-vcf.rare = subset(vcf.sn, METHODS==2 & AFMAX<.01)
-d.df = distanceToNearest(vcf.rare, genes.gr) %>% as.data.frame
-info(vcf.rare)$SELGENEDIST = NA
-info(vcf.rare)$SELGENEDIST[d.df$queryHits] = d.df$distance
-info(vcf.rare)$SELGENE = NA
-info(vcf.rare)$SELGENE[d.df$queryHits] = genes.gr$gene[d.df$subjectHits]
-## vcf.rare = subset(vcf.rare, SELGENEDIST<1e6)
-
-svs.df = tibble(
-  gene=info(vcf.rare)$SELGENE,
-  chr=as.character(seqnames(rowRanges(vcf.rare))),
-  pos=start(rowRanges(vcf.rare)),
-  type=info(vcf.rare)$SVTYPE,
-  size=abs(info(vcf.rare)$SVLEN),
-  distance=info(vcf.rare)$SELGENEDIST,
-  freq=info(vcf.rare)$AFMAX,
-  simp.rep=info(vcf.rare)$ol.simple.repeat,
-  hsvlr=info(vcf.rare)$HSVLR,
-  comhet=info(vcf.rare)$ComHET,
-  dgv=info(vcf.rare)$dgv.loss | info(vcf.rare)$dgv.gain,
-  clingen=info(vcf.rare)$clingen,
-  ctcf=info(vcf.rare)$ctcf,
-  cres=info(vcf.rare)$cres,
-  cons=info(vcf.rare)$cons,
-  gt=geno(vcf.rare)$GT[,1],
-  method='Sniffles',
-  nb.pc.genes = unlist(lapply(info(vcf.rare)$EFF, parseEff.nbpc)))
-if(info(vcf.rare)$METHOD[1]=='Sniffles'){
-  svs.df$reads=info(vcf.rare)$RE
-} else {
-  svs.df$reads=info(vcf.rare)$SUPPORT
-}
-
-svs.sel = svs.df %>% filter(distance<1e5) %>% arrange(distance)
-t.df = lapply(unique(svs.sel$gene), function(gene.name){
-  pli = subset(pli.df, gene==gene.name)$pLI
-  vars = svs.sel %>% filter(gene==gene.name) %>% select(-gene)
-  vars$pli = ifelse(is.null(pli), NA, pli[1])
-  vars$gene = gene.name
-  vars %>% dplyr::select(gene, pli, everything())
-})
-t.df = do.call(rbind, t.df)
-
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(freq<.01, !hsvlr) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Around genes of interest - Common SVs but no homozygous controls
-
-```{r rareselcomhet}
-if(!is.null(t.df)){
-  out.tsv = rbind(out.tsv,
-                  t.df %>% filter(comhet) %>% merge(genes.list) %>%
-                  mutate(start=pos, end=ifelse(type=='INS', pos, pos+size), effect=NA) %>% 
-                  select(chr, start, end, type, size, method, gene_list, gene, pli, gt, freq, dgv, clingen,
-                         simp.rep, effect))
-
-  t.df %>% filter(comhet) %>% merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, distance, type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
-    datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Around genes of interest - Transposable element insertions
-
-```{r meisel}
-if(!is.null(t.df)){
-  t.df %>% filter(freq<.01, !hsvlr, type=='INS', abs(300-size)<100 | abs(6000-size)<500) %>%
-    merge(genes.list) %>% write.table(file='sv-te-like-insertions.tsv', sep='\t', row.names=FALSE,
-                                      quote=FALSE)
-
-  t.df %>% filter(freq<.01, !hsvlr, type=='INS', abs(300-size)<100 | abs(6000-size)<500) %>%
-    merge(genes.list) %>% formatGeneTable %>%
-    select(gene_list, gene, pli, distance, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep) %>% 
-      datatable(filter='top', escape=FALSE, options=list(pageLength=50))
-}
-```
-
-### Large
+## Large
 
 Large and rare variants tend to have a higher biological impact.
 Interesting profiles to look for:
@@ -733,19 +404,84 @@ Interesting profiles to look for:
 - Large SV affecting multiple protein-coding genes.
 
 ```{r rarelarge}
-svs.df %>% filter(size>1e3, freq<.01, !hsvlr) %>%
-  arrange(desc(abs(size))) %>% 
-  select(-gene) %>% formatGeneTable %>%
-  select(type, size, pos, gt, freq, dgv, clingen, cres, cons, ctcf, simp.rep, nb.pc.genes) %>% 
+svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(size>1e3, freq<.01, !hsvlr, nb.meths>1) %>%
+  select(pos, type, size, ac, freq, 
+         nb.pc.genes, genes,
+         clingen, cons, cres, ctcf,
+         simp.rep, dgv, 
+         method, nb.meths, meths, chr) %>%
+  arrange(!clingen, desc(nb.pc.genes), desc(abs(size))) %>%
+  formatTable %>%
   datatable(filter='top', escape=FALSE, options=list(pageLength=50))
 ```
 
 
 ```{r writetsv}
 ## remove duplicates, inc. when differring only with effect (second being NA)
-out.tsv = out.tsv %>% unique %>% arrange(is.na(effect))
-isdup = out.tsv %>% select(-effect) %>% duplicated
-out.tsv = out.tsv[which(!isdup),]
+svs.gr
+svs.gene
+
+svs.all = subset(svs.gr, is.na(genes))
+svs.all$genes = NULL
+svs.all$gene = svs.all$gene_type = svs.all$impact = NA
+svs.all = c(svs.gene, svs.all)
+
 ## write TSV
-write.table(out.tsv, file='svs-in-gene-list.tsv', sep='\t', row.names=FALSE, quote=FALSE)
+out.tsv = svs.all %>% as.data.frame %>% unique
+write.table(out.tsv, file='svs-annotated.tsv', sep='\t', row.names=FALSE, quote=FALSE)
+```
+
+## Chromosomal aberrations
+
+Of note, the p arms of chromosomes 13, 14, 15, and 22 are not assembled. 
+So is the last chunk of chrYq.
+It's expected to see no coverage in these regions.
+
+```{r idxcov, fig.height=10}
+if('idxcov' %in% cfg){
+  cov.df = read.table(cfg['idxcov'], as.is=TRUE, header=TRUE, sep='\t', comment='')
+  colnames(cov.df) = c('chr', 'start', 'end', 'cov')
+  
+  chrs.order = c(1:22, 'X','Y','M')
+  if(all(grepl('chr', unique(cov.df$chr)))){
+    chrs.order = paste0('chr', chrs.order)
+  }
+  cov.df = cov.df %>% mutate(chr=factor(chr, levels=chrs.order))
+  
+  cov.df = cov.df %>%
+    filter(chr!='chrM') %>% 
+    arrange(chr, start) %>%
+    group_by(chr) %>% mutate(bin=head(rep(1:(n()/10+1), each=50), n())) %>%
+    group_by(chr, bin) %>% summarize(start=min(start), end=max(end), cov=sum(cov)) %>%
+    ungroup %>% mutate(cov=cov/median(cov))
+
+  ## Arm and centromere
+  cyto.df = read.table(cfg['cytoband'], as.is=TRUE, sep='\t')
+  colnames(cyto.df) = c('chr', 'start', 'end', 'band', 'gieaStain')
+  cyto.df = cyto.df %>% mutate(arm=substr(band, 1, 1)) %>%
+    filter(arm %in% c('p', 'q')) %>% 
+    group_by(chr, arm) %>% summarize(start=min(start), end=max(end))
+  cyto.gr = makeGRangesFromDataFrame(cyto.df, keep.extra.columns=TRUE)
+
+  cov.gr = makeGRangesFromDataFrame(cov.df)
+  cov.df$arm = 'other'
+  cov.df$arm[overlapsAny(cov.gr, subset(cyto.gr, arm=='p'))] = 'p'
+  cov.df$arm[overlapsAny(cov.gr, subset(cyto.gr, arm=='q'))] = 'q'
+  
+  ggp = ggplot(cov.df, aes(x=start/1e6, y=winsor(cov, 2))) +
+    geom_point(aes(color=arm), alpha=.5) + theme_bw() +
+    geom_hline(yintercept=1, linetype=2) + 
+    geom_smooth(se=FALSE) +
+    facet_wrap(~chr, scales='free') +
+    ylab('normalized coverage') +
+    xlab('position (Mbp)') +
+    ylim(0,2) +
+    scale_colour_brewer(palette='Set1')
+    
+  print(ggp)
+
+  cov.df %>% group_by(chr, arm) %>% summarize(median.cov=median(cov)) %>%
+    arrange(desc(abs(1-median.cov))) %>% kable
+}
 ```
