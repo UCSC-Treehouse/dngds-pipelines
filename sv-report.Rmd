@@ -1,12 +1,19 @@
 ---
 title: Structural Variation Report
 author: UPD-UCSC
-header-includes:
-- \usepackage{booktabs}
-- \usepackage{makecell}
 urlcolor: teal
-output: html_document
+output:
+  html_document:
+    theme: readable
 ---
+
+<style type="text/css">
+.main-container {
+  max-width: 1800px;
+  margin-left: auto;
+  margin-right: auto;
+}
+</style>
 
 ```{r include=FALSE}
 knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
@@ -15,15 +22,13 @@ knitr::opts_chunk$set(echo=FALSE, message=FALSE, warning=FALSE, fig.width=10)
 ```{r setup}
 ## Read input arguments
 ## 1: config file in YAML
-## 2: filename for the output TSV
+## 2: filename for the output TSV (annotated SVs)
 args = commandArgs(TRUE)
 
 ## Load packages
 library(sveval)
-library(VariantAnnotation)
 library(GenomicRanges)
 library(knitr)
-library(kableExtra)
 library(DT)
 library(dplyr)
 library(ggplot2)
@@ -64,7 +69,7 @@ linkPli <- function(scores, genes, digits=3, format='html'){
   return(formatLink(labels, urls, format=format))
 }
 linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
-  size = ifelse(type %in% c('DEL','DUP','INV'), size, 1)
+  size = ifelse(type %in% c('DEL','DUP','INV', 'LOH'), size, 1)
   urls = paste0('https://genome.ucsc.edu/cgi-bin/hgTracks?db=hg38&position=', chr, '%3A',
                 pos-flanks, '-', pos+size+flanks, '&highlight=hg38.', chr, '%3A',
                 pos, '-', pos+size, '%23E18F99')
@@ -75,11 +80,11 @@ linkPos <- function(chr, pos, type, size, flanks=500, format='html'){
 ## Format some fields of a data.frame to convert them into links to external resources
 formatTable <- function(df){
   if(nrow(df)==0) return(df)
-  if('type' %in% colnames(df)){
-    df$type = factor(df$type)
-  }
-  if('gt' %in% colnames(df)){
-    df$gt = factor(df$gt)
+  ## make some columns "factors" to help filtering
+  for(coln in c('type', 'ac', 'method', 'dgv', 'meths')){
+    if(coln %in% colnames(df)){
+      df[,coln] = factor(df[,coln])
+    }
   }
   if('pos' %in% colnames(df)){
     df$pos = linkPos(df$chr, df$pos, df$type, df$size, format='rawhtml')
@@ -101,19 +106,19 @@ cfg = gsub('"', '', unlist(lapply(cfg.r, '[', 2)))
 names(cfg) = unlist(lapply(cfg.r, '[', 1))
 
 ## for debug:
-cfg = c(sniffles_vcf='na12878.sniffles.vcf', svim_vcf='na12878.svim.vcf',
-        idxcov='indexcov_na12878-indexcov.bed.gz', gene_pos='gene_position_info.tsv',
-        pli_gene='gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
-        simprep='simpleRepeat.txt.gz',
-        hsvlr='hsvlr.vcf.gz',
-        dgv='GRCh38_hg38_variants_2016-08-31.txt',
-        clingen='iscaPathogenic.txt.gz',
-        ctcf='ENCFF010WHH.bed.gz',
-        gnomadsv='gnomad_v2_sv.sites.pass.lifted.vcf.gz',
-        cre='ENCFF166QIT.lifted.bed.gz',
-        cons='phastConsElements100way.txt.gz',
-        gencode='gencode.v35.annotation.gtf.gz',
-        cytoband='cytoBandIdeo.txt.gz')
+## cfg = c(sniffles_vcf='na12878.sniffles.vcf', svim_vcf='na12878.svim.vcf',
+##         idxcov='indexcov_na12878-indexcov.bed.gz', gene_pos='gene_position_info.tsv',
+##         pli_gene='gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
+##         simprep='simpleRepeat.txt.gz',
+##         hsvlr='hsvlr.vcf.gz',
+##         dgv='GRCh38_hg38_variants_2016-08-31.txt',
+##         clingen='iscaPathogenic.txt.gz',
+##         ctcf='ENCFF010WHH.bed.gz',
+##         gnomadsv='gnomad_v2_sv.sites.pass.lifted.vcf.gz',
+##         cre='ENCFF166QIT.lifted.bed.gz',
+##         cons='phastConsElements100way.txt.gz',
+##         gencode='gencode.v35.annotation.gtf.gz',
+##         cytoband='cytoBandIdeo.txt.gz')
 
 message('Read VCFs...')
 svs.gr.l = list()
@@ -127,6 +132,7 @@ if('svim_vcf' %in% names(cfg)){
 }
 if('cnv_ill' %in% names(cfg)){
   svs.gr.l$freec = readSVvcf(cfg['cnv_ill'])
+  svs.gr.l$freec$ac = 1
   svs.gr.l$freec$method = 'Control-FREEC'
 }
 if('smoove_ill' %in% names(cfg)){
@@ -190,11 +196,17 @@ svs.gr$nb.pc.genes[ol.genc.sum$queryHits] = ol.genc.sum$nb.pc.genes
 
 ## Nearby protein-coding genes
 pc.genes = subset(genc, type=='gene' & gene_type=='protein_coding')
-d.df = distanceToNearest(svs.gr, pc.genes) %>% as.data.frame
+d.df = distanceToNearest(svs.gr, pc.genes, ignore.strand=TRUE) %>% as.data.frame
 svs.gr$gene.dist = NA
 svs.gr$gene.dist[d.df$queryHits] = d.df$distance
 svs.gr$gene.near = NA
 svs.gr$gene.near[d.df$queryHits] = pc.genes$gene_name[d.df$subjectHits]
+
+## Near coding from protein-coding gene
+pc.cds = subset(genc, type=='CDS' & gene_type=='protein_coding')
+d.df = distanceToNearest(svs.gr, pc.cds, ignore.strand=TRUE) %>% as.data.frame
+svs.gr$cds.dist = NA
+svs.gr$cds.dist[d.df$queryHits] = d.df$distance
 
 message('Import genes of interest...')
 genes = read.table(cfg['gene_pos'], as.is=TRUE, header=TRUE) %>%
@@ -203,7 +215,7 @@ genes = read.table(cfg['gene_pos'], as.is=TRUE, header=TRUE) %>%
 genes.list = genes %>% select(gene, gene_list) %>% unique
 genes.gr = makeGRangesFromDataFrame(genes, keep.extra.columns=TRUE)
 
-d.df = distanceToNearest(svs.gr, genes.gr) %>% as.data.frame
+d.df = distanceToNearest(svs.gr, genes.gr, ignore.strand=TRUE) %>% as.data.frame
 svs.gr$sel.gene.dist = NA
 svs.gr$sel.gene.dist[d.df$queryHits] = d.df$distance
 svs.gr$sel.gene.near = NA
@@ -268,7 +280,35 @@ svs.gr$cons = overlapsAny(svs.gr, cons.gr)
 
 ## clean up some memory
 rm(cons.gr, cres, ctcf, clingen, dgv, lr.gr, sr, gnomad)
-gc()
+dump = capture.output(gc())
+
+svs.gr$cov = NA
+if('idxcov' %in% names(cfg)){
+  message('Read coverage stats from indexcov...')
+  cov.df = read.table(cfg['idxcov'], as.is=TRUE, header=TRUE, sep='\t', comment='')
+  colnames(cov.df) = c('chr', 'start', 'end', 'cov')
+  
+  chrs.order = c(1:22, 'X','Y','M')
+  if(all(grepl('chr', unique(cov.df$chr)))){
+    chrs.order = paste0('chr', chrs.order)
+  }
+  cov.df = cov.df %>% mutate(chr=factor(chr, levels=chrs.order))
+
+  nb.bins = 10
+  cov.10.df = cov.df %>%
+    filter(chr!='chrM') %>% 
+    arrange(chr, start) %>%
+    group_by(chr) %>% mutate(bin=head(rep(1:(n()/nb.bins+1), each=nb.bins), n())) %>%
+    group_by(chr, bin) %>% summarize(start=min(start), end=max(end), cov=sum(cov)) %>%
+    ungroup %>% mutate(cov=cov/median(cov))
+
+  cov.gr = makeGRangesFromDataFrame(cov.10.df, keep.extra.columns=TRUE)
+  idx.large = which(svs.gr$size>1e5)
+  ol.df = findOverlaps(svs.gr[idx.large], cov.gr) %>% as.data.frame %>%
+    mutate(cov=cov.gr$cov[subjectHits]) %>%
+    group_by(queryHits) %>% summarize(cov=paste0(round(median(cov), 2), ' (', n(), ')'))
+  svs.gr$cov[idx.large[ol.df$queryHits]] = ol.df$cov
+}
 
 ## Gene-level info
 svs.gene = svs.gr[ol.genc$queryHits]
@@ -282,26 +322,43 @@ svs.gene$impact = ol.genc$impact
 
 ## Methods
 
-The structural variants found by [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim) were annotated by [SnpEff](http://snpeff.sourceforge.net/) and with the frequency of variants in the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/).
-To focus on high-confidence SV calls, we only look at calls made by both Sniffles and SVIM.
+#### SV calling 
 
-The variants' "effects" in this report come from SnpEff and follow the format [described in SnpEff documentation](http://snpeff.sourceforge.net/SnpEff_manual.html#eff).
+The structural variants were called from the nanopore reads using [Sniffles](https://github.com/fritzsedlazeck/Sniffles) and [SVIM](https://github.com/eldariont/svim).
+[indexcov](https://github.com/brentp/goleft/tree/master/indexcov) provides quick estimates of read coverage to confirm large CNVs or identify chromosomal aberrations. 
+If short-read data is available, we run [Smoove](https://github.com/brentp/smoove) (~Lumpy) and [Control-FREEC](http://boevalab.inf.ethz.ch/FREEC/) (CNV and LOH detection).
+To focus on high-confidence SV calls, most tables only look at calls made by at least two methods
+
+#### SV database and frequency annotation
+
+The variants were compared to catalogs of known SVs.
+The frequency estimates are based on the [gnoma-SV catalog](https://macarthurlab.org/2019/03/20/structural-variants-in-gnomad/), as the maximum frequency of variants with reciprocal overlap >10%.
+A few samples have been sequenced with long-read sequencing techonology (e.g. PacBio or ONT): HGSVC: [Chaisson et al 2019](https://pubmed.ncbi.nlm.nih.gov/30992455/), SVPOP: [Audano et al. 2019](https://pubmed.ncbi.nlm.nih.gov/30661756/), GIAB: [Zook et al. 2020](https://pubmed.ncbi.nlm.nih.gov/32541955/).
+We filter out calls that match these public catalogs to remove variants that pass the frequency filter based on gnomAD-SV simply because they can't be detected by short reads.
+Finally, variants are flagged if overlapping [DGV](http://dgv.tcag.ca/dgv/app/home) (any overlap) or [ClinGenn pathogenic variants](https://www.clinicalgenome.org/) (pathogenic set, reciprocal overlap>50%).
+
+#### Gene annotation
+
+The [GENCODE](https://www.gencodegenes.org/) gene annotation was used to flag variants as *coding*, *UTR*, *promoter*, *intronic* (prioritized in this order) and compute the distance to the nearest gene.
+While we consider lncRNA, miRNA in the annotation (`genes` column), most tables focus on protein-coding genes.
 
 The *pLI* score was computed by the [gnomAD project](https://gnomad.broadinstitute.org/).
 It represents the probability that the gene is intolerant to loss-of-function variants.
 A variant affecting a gene with a high pLI score (e.g. >0.9) is more likely to have a biological impact.
 The variants in each section are ordered to show those affecting genes with the highest pLI first.
 
-In the following, we also removed common variants, i.e. either:
+#### Filters
+
+In most tables, we removed common variants, i.e. either:
 
 - frequency higher than 1% in gnomAD-SV
 - seen in the SV catalog from long-read studies
 
-Clarifications about some column names:
+#### Column names
 
-- `pli` prob of  loss-of-function intolerance described above.
+- `pLI` prob of  loss-of-function intolerance described above (`-1` if no information available).
 - `type` SV type
-- `gt` genotype, usually `0/1` for het or `1/1` for hom.
+- `ac` allele count: `1` for het or `2` for hom.
 - `freq` allele frequency of similar SV in gnomAD-SV (>10K genomes sequenced with Illumina whole-genome sequencing).
 - `dgv` does the variant overlap any variant in DGV in any way?
 - `clingen` any similar ClinGen pathogenic variants (as found at the UCSC Genome Browser)? "Similar" defined as reciprocal overlap > 50%.
@@ -310,11 +367,24 @@ Clarifications about some column names:
 - `simp.rep` is the variant in or close to a simple repeat (see simple repeat track in the UCSC Genome Browser).
 - `hsvlr` any similar variant in SV catalogs from public long-read sequencing studies?
 - `cons` does the variant overlap a conserved element (as defined by 100 vertebrate phastCons track)
-- `impact` potential impact based on gene annotation: 'coding', 'UTR', 'promoter', 'intronic'.
-- `distance` distance to the gene boundaries.
+- `impact` potential impact based on gene annotation: *coding*, *UTR*, *promoter*, *intronic*.
+- `genes` a summary of the genes overlapped by the variant and their impact.
+- `gene.dist` distance to the nearest gene which is specified by `gene.near`.
+- `sel.gene.dist` distance to the nearest gene of interest which is specified by `sel.gene.near`.
+- `cds.dist` distance to the nearest coding regions, useful for intronic variants for example.
 - `nb.pc.genes` number of protein-coding genes overlapped by the variant.
+- `method` the method that made the SV call
+- `meths` all the methods that called the SV or a similar one
+- `nb.meths` the number of methods that called the SV or a similar one
+- `cov` median scaled coverage for large variants (>100 kbp), if *indexcov* results are available. Between parenthesis is the number of bin overlapping the variant (the higher the more confident).
 
-## Genes of interest
+#### TSV file
+
+In addition to the report, a gene-centric TSV file is written with all the annotation described above.
+Gene-centric means that there is one row for each gene-variant pair.
+This helps filter on gene features (e.g. gene of interest, pLI).
+
+## Genes
 
 There are `r length(unique(genes$gene))` genes in `r length(unique(genes$gene_list))` gene lists:
 
@@ -327,44 +397,56 @@ genes %>% group_by(gene_list) %>% summarize(genes=n()) %>% kable
 They contain the following genes:
 
 ```{r genes2}
-genes %>% formatTable %>% datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+genes %>% formatTable %>% datatable(filter='top', escape=FALSE, options=list(pageLength=25, autoWidth=TRUE))
 ```
 
-## Coding/UTR/promoter variants in protein-coding genes
+## Coding/UTR/promoter
+
+Variants overlapping coding, UTR or promoter ([TSS-2000bp,TSS+200bp]) of **protein-coding genes**, including genes of interest.
+Gene-centric table: one row per affected gene, which means a variant can contribute multiple rows in the table.
 
 ```{r table_high_gene}
 svs.gene %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
   filter(nb.meths>1, gene_type=='protein_coding',
          freq<.01, !hsvlr, impact %in% c('coding', 'UTR', 'promoter')) %>%
   merge(pli.df, all.x=TRUE) %>%
+  mutate(pLI=ifelse(is.na(pLI), -1, pLI)) %>% 
   merge(genes.list, all.x=TRUE) %>% 
-  select(gene, impact, pLI, gene_list,
+  select(gene_list, gene, impact, pLI,
          pos, type, size, ac, freq,
          simp.rep, dgv, cons, cres,
          method, nb.meths, meths, chr) %>%
   arrange(is.na(gene_list), impact, desc(pLI), freq, desc(size)) %>%
   formatTable() %>%
-  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```
 
-## Intronic variants in protein-coding genes
+## Intronic
+
+Variants overlapping intronic regions but no coding, UTR or promoter of **protein-coding genes**.
+We filtered out intronic variants that are not within genes of interest AND don't overlap a regularoty/conserved region AND are located further than 1 kbp from coding sequences.
+Gene-centric table: one row per affected gene, which means a variant can contribute multiple rows in the table.
 
 ```{r table_intronic}
 svs.gene %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
   filter(nb.meths>1, gene_type=='protein_coding',
          freq<.01, !hsvlr, impact == 'intronic') %>%
   merge(pli.df, all.x=TRUE) %>%
-  merge(genes.list, all.x=TRUE) %>% 
-  select(gene, impact, pLI, gene_list,
+  mutate(pLI=ifelse(is.na(pLI), -1, pLI)) %>% 
+  merge(genes.list, all.x=TRUE) %>%
+  filter(!is.na(gene_list) | cds.dist<1e3 | cons | cres) %>% 
+  select(gene_list, gene, pLI, cds.dist,
          pos, type, size, ac, freq,
          simp.rep, dgv, cons, cres,
          method, nb.meths, meths, chr) %>%
-  arrange(is.na(gene_list), impact, desc(pLI), freq, desc(size)) %>%
+  arrange(is.na(gene_list), cds.dist, desc(pLI), freq, desc(size)) %>%
   formatTable() %>%
-  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```
 
-## Rare variants near genes of interest
+## Rare of interest
+
+All variants that don't overlap genes of interest but are close (<100kbp).
 
 ```{r table_rare_near_sel}
 svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
@@ -375,15 +457,17 @@ svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
          method, nb.meths, meths, chr) %>%
   arrange(sel.gene.dist, freq) %>%
   formatTable() %>%
-  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```
 
-## Non-coding variants in conserved or regulatory regions
+## Conserved/regulated
+
+Intergenic variants overlapping conserved regions or known regulatory regions.
 
 ```{r table_noncoding}
 svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
   filter(nb.meths>1, freq<.01, !hsvlr, cres | cons | ctcf,
-         !grepl('protein_coding', genes)) %>%
+         gene.dist>0) %>%
   select(pos, type, size, ac, freq, genes,
          cons, cres, ctcf,
          gene.dist, gene.near,
@@ -391,12 +475,13 @@ svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
          method, nb.meths, meths, chr) %>%
   arrange(freq, gene.dist, !cons, !cres, desc(size)) %>%
   formatTable() %>%
-  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```
 
 ## Large
 
 Large and rare variants tend to have a higher biological impact.
+This table shows rare variants larger than 1kbp.
 Interesting profiles to look for:
 
 - large deletions spanning a CTCF binding region (could lead to TAD reorganization and ectopic gene expression).
@@ -409,19 +494,16 @@ svs.gr %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
   select(pos, type, size, ac, freq, 
          nb.pc.genes, genes,
          clingen, cons, cres, ctcf,
-         simp.rep, dgv, 
+         simp.rep, dgv, cov,
          method, nb.meths, meths, chr) %>%
   arrange(!clingen, desc(nb.pc.genes), desc(abs(size))) %>%
   formatTable %>%
-  datatable(filter='top', escape=FALSE, options=list(pageLength=50))
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```
 
 
 ```{r writetsv}
 ## remove duplicates, inc. when differring only with effect (second being NA)
-svs.gr
-svs.gene
-
 svs.all = subset(svs.gr, is.na(genes))
 svs.all$genes = NULL
 svs.all$gene = svs.all$gene_type = svs.all$impact = NA
@@ -429,33 +511,28 @@ svs.all = c(svs.gene, svs.all)
 
 ## write TSV
 out.tsv = svs.all %>% as.data.frame %>% unique
-write.table(out.tsv, file='svs-annotated.tsv', sep='\t', row.names=FALSE, quote=FALSE)
+write.table(out.tsv, file=args[2], sep='\t', row.names=FALSE, quote=FALSE)
 ```
 
-## Chromosomal aberrations
+## Chr. aberrations
 
-Of note, the p arms of chromosomes 13, 14, 15, and 22 are not assembled. 
-So is the last chunk of chrYq.
-It's expected to see no coverage in these regions.
+If `indexcov` was run: coverage estimates across the chromosomes to identify chromosomal aberrations 
+
+Of note, some arms are not well assembled so it's normal to see low coverage in: 13p, 14p, 15p, 22p.
+Same for the the last chunk of chrYq and the beginning og 21p.
 
 ```{r idxcov, fig.height=10}
-if('idxcov' %in% cfg){
-  cov.df = read.table(cfg['idxcov'], as.is=TRUE, header=TRUE, sep='\t', comment='')
-  colnames(cov.df) = c('chr', 'start', 'end', 'cov')
-  
-  chrs.order = c(1:22, 'X','Y','M')
-  if(all(grepl('chr', unique(cov.df$chr)))){
-    chrs.order = paste0('chr', chrs.order)
-  }
-  cov.df = cov.df %>% mutate(chr=factor(chr, levels=chrs.order))
-  
+if('idxcov' %in% names(cfg)){
+  nb.bins = 50
   cov.df = cov.df %>%
     filter(chr!='chrM') %>% 
     arrange(chr, start) %>%
-    group_by(chr) %>% mutate(bin=head(rep(1:(n()/10+1), each=50), n())) %>%
+    group_by(chr) %>% mutate(bin=head(rep(1:(n()/nb.bins+1), each=nb.bins), n())) %>%
     group_by(chr, bin) %>% summarize(start=min(start), end=max(end), cov=sum(cov)) %>%
     ungroup %>% mutate(cov=cov/median(cov))
 
+  cat('Average region size in the graph below is: ', round(mean(cov.df$end-cov.df$start)/1e3, 2), 'kbp')
+  
   ## Arm and centromere
   cyto.df = read.table(cfg['cytoband'], as.is=TRUE, sep='\t')
   colnames(cyto.df) = c('chr', 'start', 'end', 'band', 'gieaStain')
@@ -472,7 +549,7 @@ if('idxcov' %in% cfg){
   ggp = ggplot(cov.df, aes(x=start/1e6, y=winsor(cov, 2))) +
     geom_point(aes(color=arm), alpha=.5) + theme_bw() +
     geom_hline(yintercept=1, linetype=2) + 
-    geom_smooth(se=FALSE) +
+    geom_smooth(se=FALSE, color='black') +
     facet_wrap(~chr, scales='free') +
     ylab('normalized coverage') +
     xlab('position (Mbp)') +
@@ -482,6 +559,27 @@ if('idxcov' %in% cfg){
   print(ggp)
 
   cov.df %>% group_by(chr, arm) %>% summarize(median.cov=median(cov)) %>%
-    arrange(desc(abs(1-median.cov))) %>% kable
+    arrange(desc(abs(1-median.cov))) %>%
+    datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 }
+```
+
+## LOH
+
+If Control-FREEC was run, it might have identified regions with loss of heterozygosity. 
+Note: these calls are less confident than the rest because only deteted by one method.
+
+```{r table_loh}
+svs.gene %>% as.data.frame %>% mutate(chr=seqnames, pos=start) %>%
+  filter(type=='LOH') %>%
+  merge(pli.df, all.x=TRUE) %>%
+  mutate(pLI=ifelse(is.na(pLI), -1, pLI)) %>% 
+  merge(genes.list, all.x=TRUE) %>% 
+  select(gene_list, gene, impact, pLI,
+         pos, size, type,
+         simp.rep, dgv, cons, cres,
+         chr) %>%
+  arrange(is.na(gene_list), impact, desc(pLI), desc(size)) %>%
+  formatTable() %>%
+  datatable(filter='top', escape=FALSE, options=list(pageLength=25))
 ```

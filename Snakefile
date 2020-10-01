@@ -23,7 +23,7 @@ if config['sample_ill'] != '':
             svim_vcf='{root}/{sample}.svim.vcf',
             cnv_ill='{root}/{sample}.freec_{w}bp.vcf'.format(w=config['bin_size'], sample=config['sample_ill'], root=config['root_ill']),
             smoove_ill='{root}/{sample}.smoove.vcf'.format(sample=config['sample_ill'], root=config['root_ill']),
-            idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz'
+            idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz',
             gene_pos= REF_DIR + '/gene_position_info.tsv',
             pli_gene= REF_DIR + '/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
             simprep= REF_DIR + '/simpleRepeat.txt.gz',
@@ -50,7 +50,7 @@ else:
         input:
             sniffles_vcf='{root}/{sample}.sniffles.vcf',
             svim_vcf='{root}/{sample}.svim.vcf',
-            idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz'
+            idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz',
             gene_pos= REF_DIR + '/gene_position_info.tsv',
             pli_gene= REF_DIR + '/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
             simprep= REF_DIR + '/simpleRepeat.txt.gz',
@@ -113,6 +113,7 @@ rule hg38_dwl:
         """
 	wget -O {params.temp_fa} https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
 	gunzip -c {params.temp_fa} > {output.fa}
+        rm {params.temp_fa}
         """
 
 rule index_fasta:
@@ -158,7 +159,7 @@ rule chain_dwl:
     shell: "wget -O {output} https://hgdownload.soe.ucsc.edu/goldenPath/hg19/liftOver/hg19ToHg38.over.chain.gz"
 
 rule lift_over_bed:
-    input: :
+    input:
            bed=REF_DIR + '/{region}.bed.gz',
            chain=REF_DIR + '/hg19ToHg38.over.chain.gz'
     output: REF_DIR + '/{region}.lifted.bed.gz'
@@ -171,7 +172,7 @@ rule lift_over_bed:
 	gunzip -c {input.bed} > {params.temp_in}
 	liftOver {params.temp_in}  {input.chain} {params.temp_out} notlifted.bed
 	gzip -c {params.temp_out} > {output}
-        rm -f {params.temp_in} notlifted.bed
+        rm -f {params.temp_in} {params.temp_out} notlifted.bed
         """
 
 rule conselt_dwl:
@@ -188,7 +189,7 @@ rule goleft_indexcov:
         bai='{root}/{sample}.sorted.bam.bai'
     output: '{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz'
     params:
-        dir='indexcov_{sample}/'
+        dir='{root}/indexcov_{sample}/'
     singularity: "docker://quay.io/biocontainers/goleft:0.2.0--0"
     benchmark: '{root}/benchmarks/{sample}.indexcov.tsv'
     log: '{root}/logs/{sample}.indexcov.log'
@@ -268,8 +269,8 @@ rule freec_rd_baf:
         cfg='{}/freec/rd_baf_{{w}}bp/{}_{{w}}bp.cfg.txt'.format(config['root_ill'], config['sample_ill'])
     output: '{}/freec/rd_baf_{{w}}bp/{}_{{w}}bp_CNVs'.format(config['root_ill'], config['sample_ill'])
     singularity: "docker://kfdrc/controlfreec:11.5"
-    benchmark: '{}/benchmarks/{}.freec.tsv'.format(config['root_ill'], config['sample_ill'])
-    log: '{}/logs/{}.freec.log'.format(config['root_ill'], config['sample_ill'])
+    benchmark: '{}/benchmarks/{}.freec_{{w}}bp.tsv'.format(config['root_ill'], config['sample_ill'])
+    log: '{}/logs/{}.freec_{{w}}bp.log'.format(config['root_ill'], config['sample_ill'])
     params:
         out_dir='{}/freec/rd_baf_{{w}}bp'.format(config['root_ill']),
         out_prefix=os.path.basename(config['bam_ill'])
