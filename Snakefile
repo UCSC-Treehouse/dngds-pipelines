@@ -214,7 +214,7 @@ rule call_sv_svim:
         ref_fa='{}/{}.fa'.format(REF_DIR, config['ref']),
         ref_fai='{}/{}.fa.fai'.format(REF_DIR, config['ref'])
     output: '{root}/{sample}.svim.vcf'
-    singularity: 'docker://quay.io/biocontainers/svim@sha256:4239718261caf12f6c27d36d5657c13a2ca3b042c833058d345b04531b576442'
+    singularity: 'docker://quay.io/biocontainers/svim@sha256:7ae8dfc3fe9cce45aaa15ab56fe4ee93feee654f76219cec605709b70a1d44c2'
     benchmark: '{root}/benchmarks/{sample}.svim.tsv'
     log: '{root}/logs/{sample}.svim.log'
     params:
