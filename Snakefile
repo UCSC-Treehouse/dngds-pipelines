@@ -180,6 +180,64 @@ rule conselt_dwl:
     shell: "wget -O {output} https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/phastConsElements100way.txt.gz"
 
 ##
+## Mapping nanopore reads
+##
+
+rule minimap2:
+    input:
+        fq='{root}/{sample}.fq.gz',
+        ref=REF_DIR + '/hg38.fa',
+        ref_idx=REF_DIR + '/hg38.fa.fai'
+    output: '{root}/{sample}.sam'
+    threads: 32
+    benchmark: '{root}/benchmarks/{sample}.minimap2.tsv'
+    log: '{root}/logs/{sample}.minimap2.log'
+    singularity: 'docker://quay.io/biocontainers/minimap2:2.17--hed695b0_2'
+    shell:
+        """
+        minimap2 --version > {log}
+        minimap2 -ax map-ont --MD -t {threads} {input.ref} {input.fq} -o {output} 2>> {log}
+        """
+
+rule sam_to_bam:
+    input: '{root}/{sample}.sam'
+    output: '{root}/{sample}.bam'
+    threads: 4
+    benchmark: '{root}/benchmarks/{sample}.sam_to_bam.tsv'
+    log: '{root}/logs/{sample}.sam_to_bam.log'
+    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    shell:
+        """
+        samtools --version > {log}
+        samtools view -S -b {input} -o {output} -@ {threads} 2>> {log}
+        """
+
+rule sort_bam:
+    input: '{root}/{sample}.bam'
+    output: '{root}/{sample}.sorted.bam'
+    threads: 4
+    benchmark: '{root}/benchmarks/{sample}.sort_bam.tsv'
+    log: '{root}/logs/{sample}.sort_bam.log'
+    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    shell:
+        """
+        samtools --version > {log}
+        samtools sort {input} -o {output} -@ {threads} 2>> {log}
+        """
+
+rule index_bam:
+    input: '{root}/{sample}.bam'
+    output: '{root}/{sample}.sorted.bam.bai'
+    benchmark: '{root}/benchmarks/{sample}.index_bam.tsv'
+    log: '{root}/logs/{sample}.index_bam.log'
+    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    shell:
+        """
+        samtools --version > {log}
+        samtools index {input} {output} 2>> {log}
+        """
+    
+##
 ## Quick coverage information from goleft 
 ##
 

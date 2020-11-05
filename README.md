@@ -91,13 +91,13 @@ make PATH/TO/FILE.sorted.RG.MD.BQSR.smoove.vcf.gz
 I'm starting a Snakemake pipeline because it's much easier to write and automatically save useful information (e.g. compute resources)
 
 Status of the Snakemake pipeline:
-- [ ] Mapping nanopore reads
+- [x] Mapping nanopore reads
 - [x] SV calling using Sniffles and SVIM on the nanopore reads.
 - [x] Quick coverage stats using indexcov for the nanopore reads.
 - [ ] Mapping Illumina reads
 - [x] CNV calling using Control-FREEC on Illumina reads
 - [x] Making the SV report.
-- [ ] Automated IGV images for selected regions.
+- [ ] Automated IGV/samplot images for selected regions.
 
 ```
 snakemake --use-singularity --configfile sm_config.yml -p --cores 20 ill_cnvs
