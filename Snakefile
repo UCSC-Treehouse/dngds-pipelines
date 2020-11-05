@@ -11,6 +11,11 @@ REF_DIR = config['ref_root']
 rule ill_cnvs:
     input: '{root}/freec/rd_baf_{w}bp/{samp}_{w}bp_CNVs'.format(root=config['root_ill'], samp=config['sample_ill'], w=config['bin_size'])
 
+rule call_samples:
+    input:
+        sniffles=expand('samples/{samp}/{samp}.sniffles.vcf', samp=config['samples'].split()),
+        svim=expand('samples/{samp}/{samp}.svim.vcf', samp=config['samples'].split())
+
 ##
 ## SV report
 ##
@@ -236,7 +241,9 @@ rule index_bam:
         samtools --version > {log}
         samtools index {input} {output} 2>> {log}
         """
-    
+
+## clean up sam and unsorted bam?
+
 ##
 ## Quick coverage information from goleft 
 ##
