@@ -2,6 +2,7 @@ import os
 from Bio import SeqIO
 
 REF_DIR = config['ref_root']
+TMP_DIR = '/scratch/jmonlong'
 
 ##
 ## handy rules to run specific analysis
@@ -14,7 +15,8 @@ rule ill_cnvs:
 rule call_samples:
     input:
         sniffles=expand('samples/{samp}/{samp}.sniffles.vcf', samp=config['samples'].split()),
-        svim=expand('samples/{samp}/{samp}.svim.vcf', samp=config['samples'].split())
+        svim=expand('samples/{samp}/{samp}.svim.vcf', samp=config['samples'].split()),
+        idxcov=expand('samples/{samp}/indexcov_{samp}/indexcov_{samp}-indexcov.bed.gz', samp=config['samples'].split())
 
 ##
 ## SV report
@@ -117,7 +119,18 @@ rule hg38_dwl:
     shell:
         """
 	wget -O {params.temp_fa} https://hgdownload.soe.ucsc.edu/goldenPath/hg38/bigZips/hg38.fa.gz
-	gunzip -c {params.temp_fa} > {output.fa}
+	gunzip -c {params.temp_fa} > {output}
+        rm {params.temp_fa}
+        """
+
+rule hg19_dwl:
+    output: REF_DIR + '/hs37d5.fa'
+    params:
+        temp_fa='hs37d5.fa.gz'
+    shell:
+        """
+	wget -O {params.temp_fa} ftp://ftp-trace.ncbi.nih.gov/1000genomes/ftp/technical/reference/phase2_reference_assembly_sequence/hs37d5.fa.gz
+	gunzip -c {params.temp_fa} > {output}
         rm {params.temp_fa}
         """
 
@@ -193,7 +206,7 @@ rule minimap2:
         fq='{root}/{sample}.fq.gz',
         ref=REF_DIR + '/hg38.fa',
         ref_idx=REF_DIR + '/hg38.fa.fai'
-    output: '{root}/{sample}.sam'
+    output: TMP_DIR + '/{root}/{sample}.sam'
     threads: 32
     benchmark: '{root}/benchmarks/{sample}.minimap2.tsv'
     log: '{root}/logs/{sample}.minimap2.log'
@@ -204,45 +217,35 @@ rule minimap2:
         minimap2 -ax map-ont --MD -t {threads} {input.ref} {input.fq} -o {output} 2>> {log}
         """
 
-rule sam_to_bam:
-    input: '{root}/{sample}.sam'
-    output: '{root}/{sample}.bam'
+rule sam_to_bam_sorted:
+    input: TMP_DIR + '/{root}/{sample}.sam'
+    output: '{root}/{sample}.sorted.bam'
     threads: 4
     benchmark: '{root}/benchmarks/{sample}.sam_to_bam.tsv'
     log: '{root}/logs/{sample}.sam_to_bam.log'
-    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    params:
+        tmp_bam=TMP_DIR + '/{sample}.sorted.bam'
+    singularity: 'docker://quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    priority: 1
     shell:
         """
         samtools --version > {log}
-        samtools view -S -b {input} -o {output} -@ {threads} 2>> {log}
-        """
-
-rule sort_bam:
-    input: '{root}/{sample}.bam'
-    output: '{root}/{sample}.sorted.bam'
-    threads: 4
-    benchmark: '{root}/benchmarks/{sample}.sort_bam.tsv'
-    log: '{root}/logs/{sample}.sort_bam.log'
-    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
-    shell:
-        """
-        samtools --version > {log}
-        samtools sort {input} -o {output} -@ {threads} 2>> {log}
+        samtools view -S -b {input} -@ {threads} | samtools sort -o {params.tmp_bam} -@ {threads} 2>> {log}
+        rm {input}
+        mv {params.tmp_bam} {output}
         """
 
 rule index_bam:
-    input: '{root}/{sample}.bam'
+    input: '{root}/{sample}.sorted.bam'
     output: '{root}/{sample}.sorted.bam.bai'
     benchmark: '{root}/benchmarks/{sample}.index_bam.tsv'
     log: '{root}/logs/{sample}.index_bam.log'
-    singularity: 'quay.io/biocontainers/samtools:1.6--h9dace67_6'
+    singularity: 'docker://quay.io/biocontainers/samtools:1.6--h9dace67_6'
     shell:
         """
         samtools --version > {log}
         samtools index {input} {output} 2>> {log}
         """
-
-## clean up sam and unsorted bam?
 
 ##
 ## Quick coverage information from goleft 
@@ -258,6 +261,7 @@ rule goleft_indexcov:
     singularity: "docker://quay.io/biocontainers/goleft:0.2.0--0"
     benchmark: '{root}/benchmarks/{sample}.indexcov.tsv'
     log: '{root}/logs/{sample}.indexcov.log'
+    priority: 2
     shell: "goleft indexcov --directory {params.dir} --sex chrX,chrY {input.bam} 2> {log}"
 
 ##
@@ -270,7 +274,9 @@ rule call_sv_sniffles:
     singularity: 'docker://quay.io/biocontainers/sniffles@sha256:98a5b91db2762ed3b8aca3bffd3dca7d6b358d2a4a4a6ce7579213d9585ba08a'
     benchmark: '{root}/benchmarks/{sample}.sniffles.tsv'
     log: '{root}/logs/{sample}.sniffles.log'
-    shell: "sniffles -m {input} -s 3 -v {output} --genotype 2> {log}"
+    priority: 2
+    threads: 2
+    shell: "sniffles -m {input} -s 3 -v {output} --genotype > {log}"
 
 rule call_sv_svim:
     input:
@@ -282,12 +288,13 @@ rule call_sv_svim:
     singularity: 'docker://quay.io/biocontainers/svim@sha256:7ae8dfc3fe9cce45aaa15ab56fe4ee93feee654f76219cec605709b70a1d44c2'
     benchmark: '{root}/benchmarks/{sample}.svim.tsv'
     log: '{root}/logs/{sample}.svim.log'
+    priority: 2
     params:
         res_dir='{root}/svim_results'
     shell:
         """
 	svim alignment {params.res_dir} {input.bam} {input.ref_fa} --sample {wildcards.sample} 2> {log}
-	mv {params.res_dir}/final_results.vcf {output}
+	mv {params.res_dir}/variants.vcf {output}
         """
 
 ##
