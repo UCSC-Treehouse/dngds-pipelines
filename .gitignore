@@ -1,2 +1,10 @@
 samples
 references
+*gz
+*vcf
+*~
+*bed
+*txt
+*tsv
+*log
+

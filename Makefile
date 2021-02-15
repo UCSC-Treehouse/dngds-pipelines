@@ -148,6 +148,11 @@ references/GRCh38.86/phastCons: references/GRCh38.86 references/hg38.fa.fai
 	wget -N -P references/GRCh38.86/phastCons http://hgdownload.soe.ucsc.edu/goldenPath/hg19/phastCons100way/hg19.100way.phastCons/chrY.phastCons100way.wigFix.gz
 	cp references/hg38.fa.fai references/GRCh38.86/phastCons/genome.fai
 
+references/phastConsElements100way.txt.gz:
+	echo "Download conserved regions..."
+	mkdir -p references
+	wget -N -P references https://hgdownload.soe.ucsc.edu/goldenPath/hg38/database/phastConsElements100way.txt.gz	
+
 references/1000G_phase1.snps.high_confidence.hg38.vcf.gz:
 	echo "Download known site of high-confidence snps for GATK BQSR..."
 	mkdir -p references
@@ -256,7 +261,7 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 # Reports
 #
 
-%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz references/ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz references/ENCFF166QIT.lifted.bed.gz
+%.sv-report.html: %.sniffles.ann.freqGnomADcov10.vcf %.svim.ann.freqGnomADcov10.vcf references/gene_position_info.tsv references/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz references/simpleRepeat.txt.gz references/hsvlr.vcf.gz references/GRCh38_hg38_variants_2016-08-31.txt references/iscaPathogenic.txt.gz references/ENCFF010WHH.bed.gz references/ references/gnomad_v2_sv.sites.pass.lifted.vcf.gz references/ENCFF166QIT.lifted.bed.gz references/phastConsElements100way.txt.gz
 	echo "Producing SV report..."
 	$(DOCKER_RUN) -v `realpath .`:/app -w /app \
 		jmonlong/sveval-rmarkdown@sha256:99e92947e226ae8496e9b061701ff5d89a445b61c919bd26744756d6b97d6a69 \
@@ -269,7 +274,8 @@ samples/na12878-chr11/na12878-chr11.fq.gz:
 				/references/iscaPathogenic.txt.gz \
 				/references/ENCFF010WHH.bed.gz \
 				/references/gnomad_v2_sv.sites.pass.lifted.vcf.gz \
-				/references/ENCFF166QIT.lifted.bed.gz
+				/references/ENCFF166QIT.lifted.bed.gz \
+				/references/phastConsElements100way.txt.gz
 	mv sv-report.html $@
 	mv sv-te-like-insertions.tsv $@.sv-te-like-insertions.tsv
 

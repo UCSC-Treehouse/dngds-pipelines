@@ -1,6 +1,10 @@
 # DNA Nanopore Genetic Disease Study Pipelines
 Tooling to run primary, secondary and tertiary pipelines for the DNA Nanopore Genetic Disease Study
 
+We want the pipeline to cover:
+
+![](DNA_Nanopore_Genetic_Disease_Study_Pipeline_diagram.png)
+
 ## Requirements
 * linux
 * make
@@ -80,4 +84,34 @@ To call structural variants with [smoove](https://github.com/brentp/smoove):
 
 ```
 make PATH/TO/FILE.sorted.RG.MD.BQSR.smoove.vcf.gz
+```
+
+# Snakemake
+
+I'm starting a Snakemake pipeline because it's much easier to write and automatically save useful information (e.g. compute resources)
+
+Status of the Snakemake pipeline:
+- [x] Mapping nanopore reads
+- [x] SV calling using Sniffles and SVIM on the nanopore reads.
+- [x] Quick coverage stats using indexcov for the nanopore reads.
+- [ ] Mapping Illumina reads
+- [x] CNV calling using Control-FREEC on Illumina reads
+- [x] Making the SV report.
+- [ ] Automated IGV/samplot images for selected regions.
+
+```
+snakemake --use-singularity --configfile sm_config.yml -p --cores 20 ill_cnvs
+
+snakemake --use-singularity --configfile sm_config.yml -p PATH_TO_SAMPLE_ROOT/sv-report-SAMPLE_NAME.html
+```
+
+Note: add `-n` for a dry-run to see if everything is set-up (correct config file, necessary input files).
+
+Note: I had some issues because I was running this from a folder with the content of this repo and I had sym-linked the folders with the references and sample data.
+To be accessible to the container they needed to be explicitly mounted using like this:
+
+```
+SM_SING="-B `pwd`/samples:/private/groups/upd/samples -B `pwd`/references:/private/groups/upd/references"
+
+snakemake --use-singularity --singularity-args "$SM_SING" --configfile sm_config.yml -p --cores 20 ill_cnvs -n
 ```
