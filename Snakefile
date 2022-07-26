@@ -14,8 +14,8 @@ rule ill_cnvs:
 
 rule call_samples:
     input:
-        sniffles=expand('samples/{samp}/{samp}.sniffles.vcf', samp=config['samples'].split()),
-        svim=expand('samples/{samp}/{samp}.svim.vcf', samp=config['samples'].split()),
+        sniffles=expand('samples/{samp}/{samp}.sniffles2.vcf.gz', samp=config['samples'].split()),
+        svim=expand('samples/{samp}/{samp}.svim.vcf.gz', samp=config['samples'].split()),
         idxcov=expand('samples/{samp}/indexcov_{samp}/indexcov_{samp}-indexcov.bed.gz', samp=config['samples'].split())
 
 ##
@@ -26,8 +26,8 @@ if config['sample_ill'] != '':
     ## if we have illumina data, use the SV/CNV calls from it
     rule sv_report_cfg:
         input:
-            sniffles_vcf='{root}/{sample}.sniffles.vcf',
-            svim_vcf='{root}/{sample}.svim.vcf',
+            sniffles_vcf='{root}/{sample}.sniffles2.vcf.gz',
+            svim_vcf='{root}/{sample}.svim.vcf.gz',
             cnv_ill='{root}/{sample}.freec_{w}bp.vcf'.format(w=config['bin_size'], sample=config['sample_ill'], root=config['root_ill']),
             smoove_ill='{root}/{sample}.smoove.vcf'.format(sample=config['sample_ill'], root=config['root_ill']),
             idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz',
@@ -55,8 +55,8 @@ else:
     ## otherwise, just use LR calls
     rule sv_report_cfg:
         input:
-            sniffles_vcf='{root}/{sample}.sniffles.vcf',
-            svim_vcf='{root}/{sample}.svim.vcf',
+            sniffles_vcf='{root}/{sample}.sniffles2.vcf.gz',
+            svim_vcf='{root}/{sample}.svim.vcf.gz',
             idxcov='{root}/indexcov_{sample}/indexcov_{sample}-indexcov.bed.gz',
             gene_pos= REF_DIR + '/gene_position_info.tsv',
             pli_gene= REF_DIR + '/gnomad.v2.1.1.lof_metrics.by_gene.txt.bgz',
@@ -278,14 +278,27 @@ rule call_sv_sniffles:
     threads: 2
     shell: "sniffles -m {input} -s 3 -v {output} --genotype > {log}"
 
+rule call_sv_sniffles2:
+    input:
+        bam='{root}/{sample}.sorted.bam',
+        ref=REF_DIR + '/hg38.fa',
+        ref_idx=REF_DIR + '/hg38.fa.fai'
+    output: '{root}/{sample}.sniffles2.vcf.gz'
+    singularity: 'docker://quay.io/biocontainers/sniffles@sha256:e5b7a803c502f7e12b6e6cb43f700e8d93c9038fd0d88eadab6393267abb09fc'
+    benchmark: '{root}/benchmarks/{sample}.sniffles2.tsv'
+    log: '{root}/logs/{sample}.sniffles2.log'
+    priority: 2
+    threads: 4
+    shell: "sniffles -i {input.bam} --threads {threads} --output-rnames -v {output} --sample-id {wildcards.sample} --reference {input.ref} > {log}"
+
 rule call_sv_svim:
     input:
         bam='{root}/{sample}.sorted.bam',
         bai='{root}/{sample}.sorted.bam.bai',
         ref_fa='{}/{}.fa'.format(REF_DIR, config['ref']),
         ref_fai='{}/{}.fa.fai'.format(REF_DIR, config['ref'])
-    output: '{root}/{sample}.svim.vcf'
-    singularity: 'docker://quay.io/biocontainers/svim@sha256:7ae8dfc3fe9cce45aaa15ab56fe4ee93feee654f76219cec605709b70a1d44c2'
+    output: '{root}/{sample}.svim.vcf.gz'
+    singularity: 'docker://quay.io/biocontainers/svim@sha256:67ad426e01eb0b16c92551a45086d2d25595ff8b82b97a5caac58aa6009a196c'
     benchmark: '{root}/benchmarks/{sample}.svim.tsv'
     log: '{root}/logs/{sample}.svim.log'
     priority: 2
@@ -294,7 +307,8 @@ rule call_sv_svim:
     shell:
         """
 	svim alignment {params.res_dir} {input.bam} {input.ref_fa} --sample {wildcards.sample} 2> {log}
-	mv {params.res_dir}/variants.vcf {output}
+	gzip -c {params.res_dir}/variants.vcf > {output}
+        rm -r {params.res_dir}
         """
 
 ##
